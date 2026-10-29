@@ -6,7 +6,7 @@ function App() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("http://localhost:3000/api/health")
+    fetch(`${import.meta.env.VITE_API_URL}/api/health`)
       .then((response) => {
         if (!response.ok) {
           throw new Error("API trả về lỗi");
