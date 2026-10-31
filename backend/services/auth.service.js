@@ -182,10 +182,16 @@ async function registerCustomer(
     try {
         await sendOtp(user.id);
     } catch (error) {
-        console.error(
-            "Failed to send registration OTP:",
-            error.message
-        );
+        const cause = error.cause;
+
+        console.error("Failed to send registration OTP:", {
+            message: error.message,
+            causeMessage: cause?.message,
+            code: cause?.code,
+            responseCode: cause?.responseCode,
+            command: cause?.command,
+            response: cause?.response,
+        });
 
         const registrationError = new Error(
             "REGISTRATION_EMAIL_DELIVERY_FAILED"
