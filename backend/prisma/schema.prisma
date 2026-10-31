@@ -1,0 +1,207 @@
+// ==========================================
+// PRISMA CLIENT
+// ==========================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// DATABASE
+// ==========================================
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PRISMA_DATABASE_URL")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  LOCKED
+
+  @@map("user_status")
+}
+
+enum EmailVerificationPurpose {
+  REGISTER
+
+  @@map("email_verification_purpose")
+}
+
+// ==========================================
+// USER
+// ==========================================
+
+model User {
+  id           String  @id @default(uuid()) @db.Uuid
+  email        String  @unique(map: "users_email_key") @db.VarChar(255)
+  phone        String? @unique(map: "users_phone_key") @db.VarChar(20)
+  passwordHash String  @map("password_hash") @db.Text
+  fullName     String  @map("full_name") @db.VarChar(150)
+
+  role   UserRole   @default(CUSTOMER)
+  status UserStatus @default(PENDING_VERIFICATION)
+
+  emailVerifiedAt           DateTime? @map("email_verified_at") @db.Timestamptz(6)
+  passwordResetBlockedUntil DateTime? @map("password_reset_blocked_until") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  addresses          Address[]
+  emailVerifications EmailVerification[]
+  passwordResets     PasswordReset[]
+  refreshTokens      RefreshToken[]
+
+  statusHistories    UserStatusHistory[] @relation("StatusSubject")
+  adminStatusChanges UserStatusHistory[] @relation("StatusActor")
+
+  @@map("users")
+}
+
+// ==========================================
+// ADDRESS
+// ==========================================
+
+model Address {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  recipientName String @map("recipient_name") @db.VarChar(150)
+  phone         String @db.VarChar(20)
+
+  provinceCity String  @map("province_city") @db.VarChar(150)
+  district     String  @db.VarChar(150)
+  street       String  @db.VarChar(255)
+  addressNote  String? @map("address_note") @db.Text
+
+  isDefault Boolean @default(false) @map("is_default")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId], map: "addresses_user_id_idx")
+  @@map("addresses")
+}
+
+// ==========================================
+// EMAIL VERIFICATION
+// ==========================================
+
+model EmailVerification {
+  id      String                   @id @default(uuid()) @db.Uuid
+  userId  String                   @map("user_id") @db.Uuid
+  purpose EmailVerificationPurpose
+
+  tokenHash String @map("token_hash") @db.Text
+
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt        DateTime? @map("used_at") @db.Timestamptz(6)
+  invalidatedAt DateTime? @map("invalidated_at") @db.Timestamptz(6)
+
+  attemptCount Int @default(0) @map("attempt_count")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, purpose, createdAt(sort: Desc)], map: "email_verifications_user_purpose_created_idx")
+  @@index([createdAt], map: "email_verifications_created_at_idx")
+  @@map("email_verifications")
+}
+
+// ==========================================
+// PASSWORD RESET
+// ==========================================
+
+model PasswordReset {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  tokenHash String @unique(map: "password_resets_token_hash_key") @map("token_hash") @db.Text
+
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt(sort: Desc)], map: "password_resets_user_created_idx")
+  @@map("password_resets")
+}
+
+// ==========================================
+// REFRESH TOKEN
+// ==========================================
+
+model RefreshToken {
+  id       String @id @default(uuid()) @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+  familyId String @map("family_id") @db.Uuid
+
+  tokenHash String @unique(map: "refresh_tokens_token_hash_key") @map("token_hash") @db.Text
+
+  deviceName String? @map("device_name") @db.VarChar(255)
+  userAgent  String? @map("user_agent") @db.Text
+
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId], map: "refresh_tokens_user_id_idx")
+  @@index([familyId], map: "refresh_tokens_family_id_idx")
+  @@index([userId, expiresAt], map: "refresh_tokens_active_idx")
+  @@map("refresh_tokens")
+}
+
+// ==========================================
+// USER STATUS HISTORY
+// ==========================================
+
+model UserStatusHistory {
+  id        String @id @default(uuid()) @db.Uuid
+  userId    String @map("user_id") @db.Uuid
+  changedBy String @map("changed_by") @db.Uuid
+
+  oldStatus UserStatus @map("old_status")
+  newStatus UserStatus @map("new_status")
+
+  reason    String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Customer whose status changed
+  user User @relation("StatusSubject", fields: [userId], references: [id], onDelete: Restrict)
+
+  // Admin who performed the action
+  admin User @relation("StatusActor", fields: [changedBy], references: [id], onDelete: Restrict)
+
+  @@index([userId], map: "user_status_histories_user_id_idx")
+  @@index([changedBy], map: "user_status_histories_changed_by_idx")
+  @@index([createdAt(sort: Desc)], map: "user_status_histories_created_at_idx")
+  @@map("user_status_histories")
+}
