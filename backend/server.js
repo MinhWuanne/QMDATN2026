@@ -6,7 +6,7 @@ const { rateLimit } = require("express-rate-limit");
 
 require("dotenv").config();
 
-const pool = require("./db");
+const prisma = require("./lib/prisma");
 
 const authRoutes = require("./routes/auth.routes");
 const adminAuthRoutes = require("./routes/admin-auth.routes");
@@ -70,14 +70,14 @@ app.get("/api/health", (req, res) => {
 // Database health
 app.get("/api/db-health", async (req, res) => {
   try {
-    const result = await pool.query(
-      "SELECT NOW() AS database_time, version() AS database_version"
-    );
+    const [database] = await prisma.$queryRaw`
+      SELECT NOW() AS database_time, version() AS database_version
+    `;
 
     res.json({
       success: true,
       message: "PostgreSQL connected successfully!",
-      database: result.rows[0],
+      database,
     });
   } catch (error) {
     console.error("Database connection failed:", error);
