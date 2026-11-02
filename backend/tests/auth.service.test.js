@@ -18,8 +18,11 @@ const prisma = require("../core/database/prisma");
 const {
   registerCustomer,
   loginCustomer,
+} = require("../modules/auth/customer/customer-auth.service");
+
+const {
   loginAdmin,
-} = require("../services/auth.service");
+} = require("../modules/auth/admin/admin-auth.service");
 
 const {
   hashPassword,

@@ -4,8 +4,11 @@ const assert = require("node:assert/strict");
 const {
   registerSchema,
   customerLoginSchema,
+} = require("../modules/auth/customer/customer-auth.validator");
+
+const {
   adminLoginSchema,
-} = require("../validators/auth.validator");
+} = require("../modules/auth/admin/admin-auth.validator");
 
 test("Đăng ký với dữ liệu hợp lệ", () => {
   const result = registerSchema.safeParse({
