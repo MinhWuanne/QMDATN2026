@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const {
   generateRefreshToken,
   hashRefreshToken,
-} = require("../utils/refresh-token");
+} = require("../core/security/refresh-token");
 
 test("Generate refresh token with 256-bit entropy", () => {
   const token = generateRefreshToken();

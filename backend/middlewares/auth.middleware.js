@@ -1,6 +1,6 @@
 
-const { verifyAccessToken } = require("../utils/jwt");
-const prisma = require("../lib/prisma");
+const { verifyAccessToken } = require("../core/security/jwt");
+const prisma = require("../core/database/prisma");
 
 async function authenticate(req, res, next) {
   try {

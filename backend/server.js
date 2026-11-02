@@ -6,7 +6,7 @@ const { rateLimit } = require("express-rate-limit");
 
 require("dotenv").config();
 
-const prisma = require("./lib/prisma");
+const prisma = require("./core/database/prisma");
 
 const authRoutes = require("./routes/auth.routes");
 const adminAuthRoutes = require("./routes/admin-auth.routes");

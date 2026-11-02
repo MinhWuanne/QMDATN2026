@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const {
   hashPassword,
   verifyPassword,
-} = require("../utils/password");
+} = require("../core/security/password");
 
 test("Hash mật khẩu thành công", async () => {
   const password = "MyPassword123!";

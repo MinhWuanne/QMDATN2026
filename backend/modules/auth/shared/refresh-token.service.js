@@ -1,12 +1,12 @@
 
 const crypto = require("node:crypto");
 
-const prisma = require("../lib/prisma");
+const prisma = require("../../../core/database/prisma");
 
 const {
     generateRefreshToken,
     hashRefreshToken,
-} = require("../utils/refresh-token");
+} = require("../../../core/security/refresh-token");
 
 const REFRESH_TOKEN_TTL_DAYS = 30;
 
@@ -104,7 +104,7 @@ async function createRefreshSession({
     };
 }
 
-async function rotateRefreshToken(rawToken) {
+async function rotateRefreshToken(rawToken, { expectedRole } = {}) {
     const oldTokenHash = hashRefreshToken(rawToken);
 
     const newRawToken = generateRefreshToken();
@@ -127,6 +127,8 @@ async function rotateRefreshToken(rawToken) {
                 user: {
                     select: {
                         id: true,
+                        fullName: true,
+                        email: true,
                         role: true,
                         status: true,
                     },
@@ -137,6 +139,10 @@ async function rotateRefreshToken(rawToken) {
         if (!oldToken) {
             return {
                 error: "INVALID_REFRESH_TOKEN",
+            };
+        } if (expectedRole && oldToken.user?.role !== expectedRole) {
+            return {
+                error: "REFRESH_TOKEN_ROLE_MISMATCH",
             };
         }
 
@@ -226,7 +232,10 @@ async function rotateRefreshToken(rawToken) {
             sessionId: newSession.id,
             user: {
                 id: oldToken.user.id,
+                fullName: oldToken.user.fullName,
+                email: oldToken.user.email,
                 role: oldToken.user.role,
+                status: oldToken.user.status,
             },
         };
     });
@@ -238,7 +247,7 @@ async function rotateRefreshToken(rawToken) {
     return outcome;
 }
 
-async function revokeRefreshToken(rawToken) {
+async function revokeRefreshToken(rawToken, { expectedRole } = {}) {
     const tokenHash = hashRefreshToken(rawToken);
     const now = new Date();
 
@@ -248,16 +257,26 @@ async function revokeRefreshToken(rawToken) {
 `;
 
         const session = await tx.refreshToken.findUnique({
-            where: {
-                tokenHash,
-            },
-            select: {
-                id: true,
-                revokedAt: true,
+            where: { tokenHash },
+            include: {
+                user: {
+                    select: { role: true },
+                },
             },
         });
 
-        if (!session || session.revokedAt) {
+        if (!session) {
+            return {
+                success: true,
+                revoked: false,
+            };
+        }
+
+        if (expectedRole && session.user?.role !== expectedRole) {
+            throw new Error("REFRESH_TOKEN_ROLE_MISMATCH");
+        }
+
+        if (session.revokedAt) {
             return {
                 success: true,
                 revoked: false,

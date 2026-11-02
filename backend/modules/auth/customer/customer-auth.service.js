@@ -1,25 +1,23 @@
-
-const prisma = require("../lib/prisma");
+﻿const prisma = require("../../../core/database/prisma");
 
 const {
     registerSchema,
     customerLoginSchema,
-    adminLoginSchema,
-} = require("../validators/auth.validator");
+} = require("./customer-auth.validator");
 
 const {
     hashPassword,
     verifyPassword,
     DUMMY_PASSWORD_HASH,
-} = require("../utils/password");
+} = require("../../../core/security/password");
 
 const {
-    signAccessToken,
-} = require("../utils/jwt");
+    createSafeUser,
+} = require("../shared/auth-user");
 
 const {
-    createRefreshSession,
-} = require("./refresh-token.service");
+    issueLoginTokens,
+} = require("../shared/login-token.service");
 
 const {
     issueRegistrationOtp,
@@ -32,17 +30,11 @@ function mapUniqueConstraintError(error) {
 
     const target = error.meta?.target;
 
-    if (
-        Array.isArray(target) &&
-        target.includes("email")
-    ) {
+    if (Array.isArray(target) && target.includes("email")) {
         return new Error("EMAIL_ALREADY_EXISTS");
     }
 
-    if (
-        Array.isArray(target) &&
-        target.includes("phone")
-    ) {
+    if (Array.isArray(target) && target.includes("phone")) {
         return new Error("PHONE_ALREADY_EXISTS");
     }
 
@@ -57,53 +49,6 @@ function mapUniqueConstraintError(error) {
     }
 
     return new Error("REGISTRATION_CONFLICT");
-}
-
-function createSafeUser(user, includePhone = true) {
-    const safeUser = {
-        id: user.id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-    };
-
-    if (includePhone) {
-        safeUser.phone = user.phone;
-    }
-
-    return safeUser;
-}
-
-async function issueLoginTokens(user, metadata = {}) {
-    // Tạo Refresh Session trước.
-    // Nếu tạo Access Token thất bại, thu hồi session để tránh
-    // để lại một phiên đăng nhập không được sử dụng.
-    const session = await createRefreshSession({
-        userId: user.id,
-        deviceName: metadata.deviceName,
-        userAgent: metadata.userAgent,
-    });
-
-    try {
-        const accessToken = signAccessToken({
-            userId: user.id,
-            role: user.role,
-        });
-
-        return {
-            accessToken,
-            refreshToken: session.refreshToken,
-            refreshTokenExpiresAt: session.expiresAt,
-            sessionId: session.sessionId,
-        };
-    } catch (error) {
-        const { revokeRefreshToken } = require("./refresh-token.service");
-
-        await revokeRefreshToken(session.refreshToken);
-
-        throw error;
-    }
 }
 
 async function registerCustomer(
@@ -267,55 +212,7 @@ async function loginCustomer(input, metadata = {}) {
     };
 }
 
-async function loginAdmin(input, metadata = {}) {
-    const validation = adminLoginSchema.safeParse(input);
-
-    if (!validation.success) {
-        const error = new Error("VALIDATION_ERROR");
-        error.details = validation.error.flatten().fieldErrors;
-        throw error;
-    }
-
-    const { email, password } = validation.data;
-
-    const user = await prisma.user.findFirst({
-        where: {
-            email,
-            role: "ADMIN",
-        },
-    });
-
-    if (!user) {
-        const dummyHash = await DUMMY_PASSWORD_HASH;
-        await verifyPassword(dummyHash, password);
-
-        throw new Error("INVALID_CREDENTIALS");
-    }
-
-    const passwordIsValid = await verifyPassword(
-        user.passwordHash,
-        password
-    );
-
-    if (!passwordIsValid) {
-        throw new Error("INVALID_CREDENTIALS");
-    }
-
-    if (user.status !== "ACTIVE") {
-        throw new Error("ACCOUNT_NOT_ACTIVE");
-    }
-
-    const tokens = await issueLoginTokens(user, metadata);
-
-    return {
-        success: true,
-        user: createSafeUser(user, false),
-        tokens,
-    };
-}
-
 module.exports = {
     registerCustomer,
     loginCustomer,
-    loginAdmin,
 };

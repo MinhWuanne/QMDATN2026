@@ -1,0 +1,264 @@
+﻿.admin-auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background: #f4f5f1;
+  color: #171717;
+  font-family: Inter, "Be Vietnam Pro", Arial, sans-serif;
+}
+
+.admin-login-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 42px;
+  background: #fff;
+  border: 1px solid #e8e9e5;
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .06);
+}
+
+.admin-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-logo > span,
+.admin-auth-loading > span {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #b7f34a;
+  color: #171717;
+  font-size: 23px;
+  font-weight: 900;
+}
+
+.admin-logo strong,
+.admin-logo small {
+  display: block;
+}
+
+.admin-logo strong {
+  font-size: 15px;
+  letter-spacing: .04em;
+}
+
+.admin-logo small {
+  margin-top: 3px;
+  color: #777;
+  font-size: 9px;
+  letter-spacing: .16em;
+}
+
+.admin-login-heading {
+  margin: 44px 0 28px;
+}
+
+.admin-login-heading > span,
+.admin-dashboard-eyebrow {
+  color: #718b35;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .15em;
+}
+
+.admin-login-heading h1,
+.admin-dashboard-content h1 {
+  margin: 12px 0;
+  font-size: 29px;
+  letter-spacing: -.04em;
+}
+
+.admin-login-heading p,
+.admin-dashboard-content > p {
+  color: #777;
+  font-size: 14px;
+}
+
+.admin-login-form {
+  display: grid;
+  gap: 20px;
+}
+
+.admin-login-form label {
+  display: grid;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-login-form input {
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid #dedfd9;
+  border-radius: 9px;
+  outline: none;
+  background: #fff;
+  color: #171717;
+  font: inherit;
+  font-size: 14px;
+}
+
+.admin-login-form input:focus {
+  border-color: #8eae42;
+  box-shadow: 0 0 0 3px rgba(183, 243, 74, .18);
+}
+
+.admin-password-field {
+  display: flex;
+  align-items: center;
+  border: 1px solid #dedfd9;
+  border-radius: 9px;
+}
+
+.admin-password-field:focus-within {
+  border-color: #8eae42;
+  box-shadow: 0 0 0 3px rgba(183, 243, 74, .18);
+}
+
+.admin-password-field input {
+  border: 0;
+  box-shadow: none;
+}
+
+.admin-password-field button {
+  padding: 10px;
+  border: 0;
+  background: transparent;
+  color: #718b35;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-login-error {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fff0ef;
+  color: #b42318;
+  font-size: 13px;
+}
+
+.admin-login-submit {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 50px;
+  padding: 0 17px;
+  border: 0;
+  border-radius: 9px;
+  background: #171717;
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+
+.admin-login-submit:hover {
+  background: #303030;
+}
+
+.admin-login-submit:disabled,
+.admin-logout:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.admin-login-footer {
+  margin: 30px 0 0;
+  color: #999;
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-align: center;
+}
+
+.admin-auth-loading {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  background: #f4f5f1;
+  color: #777;
+  font-family: Inter, Arial, sans-serif;
+}
+
+.admin-dashboard {
+  min-height: 100vh;
+  background: #f4f5f1;
+  color: #171717;
+  font-family: Inter, "Be Vietnam Pro", Arial, sans-serif;
+}
+
+.admin-topbar {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6%;
+  background: white;
+  border-bottom: 1px solid #e8e9e5;
+}
+
+.admin-logout {
+  padding: 11px 16px;
+  border: 1px solid #dedfd9;
+  border-radius: 8px;
+  background: white;
+  color: #171717;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-dashboard-content {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 64px 24px;
+}
+
+.admin-welcome-card {
+  max-width: 500px;
+  margin-top: 32px;
+  padding: 26px;
+  border: 1px solid #e5e7df;
+  border-radius: 14px;
+  background: white;
+}
+
+.admin-welcome-card > span {
+  color: #718b35;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.admin-welcome-card h2 {
+  margin-bottom: 8px;
+}
+
+.admin-welcome-card p {
+  color: #777;
+  font-size: 14px;
+}
+
+@media (max-width: 520px) {
+  .admin-login-card {
+    padding: 28px 22px;
+  }
+
+  .admin-login-heading h1 {
+    font-size: 25px;
+  }
+
+  .admin-topbar {
+    padding: 0 18px;
+  }
+}

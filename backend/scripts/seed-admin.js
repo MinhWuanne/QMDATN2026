@@ -1,7 +1,7 @@
 require("dotenv").config();
 
-const prisma = require("../lib/prisma");
-const { hashPassword } = require("../utils/password");
+const prisma = require("../core/database/prisma");
+const { hashPassword } = require("../core/security/password");
 
 async function main() {
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();

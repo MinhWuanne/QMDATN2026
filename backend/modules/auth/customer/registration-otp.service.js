@@ -1,13 +1,13 @@
 
-const prisma = require("../lib/prisma");
+const prisma = require("../../../core/database/prisma");
 
 const {
   generateOtp,
   hashOtp,
   verifyOtp,
-} = require("../utils/otp");
+} = require("../../../core/security/otp");
 
-const { getSecret } = require("../config/env");
+const { getSecret } = require("../../../core/config/env");
 
 const {
   sendRegistrationOtpEmail,

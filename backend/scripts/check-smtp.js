@@ -1,7 +1,7 @@
 
 const {
   verifyEmailConnection,
-} = require("../services/email.service");
+} = require("../core/email/email.service");
 
 async function main() {
   try {

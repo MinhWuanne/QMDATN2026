@@ -2,10 +2,10 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 
-const prisma = require("../lib/prisma");
-const { hashPassword, verifyPassword } = require("../utils/password");
-const emailService = require("../services/email.service");
-const { createRefreshSession } = require("../services/refresh-token.service");
+const prisma = require("../core/database/prisma");
+const { hashPassword, verifyPassword } = require("../core/security/password");
+const emailService = require("../core/email/email.service");
+const { createRefreshSession } = require("../modules/auth/shared/refresh-token.service");
 
 // Mock email: không gửi email thật trong quá trình test.
 let sendEmailHandler = async () => {};
@@ -15,7 +15,7 @@ emailService.sendEmail = (...args) => sendEmailHandler(...args);
 const {
   requestPasswordReset,
   resetPassword,
-} = require("../services/password-reset.service");
+} = require("../modules/auth/customer/password-reset.service");
 
 function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -28,13 +28,13 @@ function extractToken(email) {
   return new URL(match[1]).searchParams.get("token");
 }
 
-async function createTestUser() {
+async function createTestUser(role = "CUSTOMER") {
   return prisma.user.create({
     data: {
       fullName: "Password Reset Test",
       email: `reset-${crypto.randomUUID()}@example.invalid`,
       passwordHash: await hashPassword("OldPassword123"),
-      role: "CUSTOMER",
+      role,
       status: "ACTIVE",
       emailVerifiedAt: new Date(),
     },
@@ -68,6 +68,31 @@ test("Forgot password returns success for non-existing account", async () => {
 
   assert.equal(result.success, true);
   assert.equal(emailSent, false);
+});
+
+test("Admin cannot request password reset", async () => {
+  const admin = await prisma.user.findFirst({
+    where: { role: "ADMIN" },
+  });
+
+  assert.ok(admin, "Admin account must exist");
+
+  let emailSent = false;
+
+  sendEmailHandler = async () => {
+    emailSent = true;
+  };
+
+  const result = await requestPasswordReset(admin.email);
+
+  assert.equal(result.success, true);
+  assert.equal(emailSent, false);
+
+  const resetRecord = await prisma.passwordReset.findFirst({
+    where: { userId: admin.id },
+  });
+
+  assert.equal(resetRecord, null);
 });
 
 test("Request password reset successfully and store only token hash", async () => {
@@ -281,6 +306,47 @@ test("Reject expired password reset token", async () => {
     );
   } finally {
     if (user) await cleanupUser(user.id);
+  }
+});
+
+test("Reject password reset token belonging to Admin", async () => {
+  const admin = await prisma.user.findFirst({
+    where: { role: "ADMIN" },
+  });
+
+  assert.ok(admin, "Admin account must exist");
+
+  const originalPasswordHash = admin.passwordHash;
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const tokenHash = hashToken(rawToken);
+
+  try {
+    await prisma.passwordReset.create({
+      data: {
+        userId: admin.id,
+        tokenHash,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      },
+    });
+
+    await assert.rejects(
+      () => resetPassword(rawToken, "NewPassword123"),
+      (error) =>
+        error.message === "INVALID_OR_EXPIRED_RESET_TOKEN"
+    );
+
+    const unchangedAdmin = await prisma.user.findUnique({
+      where: { id: admin.id },
+    });
+
+    assert.equal(
+      unchangedAdmin.passwordHash,
+      originalPasswordHash
+    );
+  } finally {
+    await prisma.passwordReset.deleteMany({
+      where: { tokenHash },
+    });
   }
 });
 

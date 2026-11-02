@@ -2,14 +2,14 @@
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 
-const prisma = require("../lib/prisma");
+const prisma = require("../core/database/prisma");
 
 const {
   createRegistrationOtp,
   verifyOtp,
   getOtpHashSecret,
   OTP_PURPOSE,
-} = require("../services/registration-otp.service");
+} = require("../modules/auth/customer/registration-otp.service");
 
 async function main() {
   let testUserId;

@@ -7,7 +7,7 @@ const {
   signAccessToken,
   verifyAccessToken,
   ACCESS_TOKEN_TTL,
-} = require("../utils/jwt");
+} = require("../core/security/jwt");
 
 const TEST_SECRET =
   "test-secret-for-jwt-unit-tests-at-least-32-bytes";

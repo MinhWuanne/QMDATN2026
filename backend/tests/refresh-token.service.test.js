@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 
-const prisma = require("../lib/prisma");
+const prisma = require("../core/database/prisma");
 
 const {
   createRefreshSession,
@@ -10,11 +10,11 @@ const {
   revokeRefreshToken,
   revokeAllRefreshTokens,
   REFRESH_TOKEN_TTL_DAYS,
-} = require("../services/refresh-token.service");
+} = require("../modules/auth/shared/refresh-token.service");
 
 const {
   hashRefreshToken,
-} = require("../utils/refresh-token");
+} = require("../core/security/refresh-token");
 
 async function createTestUser({ status = "ACTIVE" } = {}) {
   const id = crypto.randomUUID();
@@ -172,6 +172,68 @@ test("rotateRefreshToken thu hồi token cũ và tạo token mới cùng family"
     assert.equal(newRecord.userAgent, "Test Browser");
     assert.equal(newRecord.revokedAt, null);
   });
+});
+
+test("rotateRefreshToken từ chối Customer token khi yêu cầu vai trò Admin và không thu hồi token", async () => {
+  await withTestUser(async (user) => {
+    const session = await createRefreshSession({
+      userId: user.id,
+    });
+
+    await assert.rejects(
+      () => rotateRefreshToken(session.refreshToken, {
+        expectedRole: "ADMIN",
+      }),
+      {
+        message: "REFRESH_TOKEN_ROLE_MISMATCH",
+      }
+    );
+
+    const stored = await prisma.refreshToken.findUnique({
+      where: {
+        id: session.sessionId,
+      },
+    });
+
+    assert.equal(stored.revokedAt, null);
+  });
+});
+
+test("rotateRefreshToken từ chối Admin token khi yêu cầu vai trò Customer và không thu hồi token", async () => {
+  const adminEmail = process.env.ADMIN_EMAIL;
+
+  const admin = await prisma.user.findUnique({
+    where: { email: adminEmail },
+  });
+
+  assert.ok(admin);
+  assert.equal(admin.role, "ADMIN");
+  assert.equal(admin.status, "ACTIVE");
+
+  const session = await createRefreshSession({
+    userId: admin.id,
+  });
+
+  try {
+    await assert.rejects(
+      () => rotateRefreshToken(session.refreshToken, {
+        expectedRole: "CUSTOMER",
+      }),
+      {
+        message: "REFRESH_TOKEN_ROLE_MISMATCH",
+      }
+    );
+
+    const stored = await prisma.refreshToken.findUnique({
+      where: { id: session.sessionId },
+    });
+
+    assert.equal(stored.revokedAt, null);
+  } finally {
+    await prisma.refreshToken.deleteMany({
+      where: { id: session.sessionId },
+    });
+  }
 });
 
 test("sử dụng lại token cũ sẽ phát hiện replay và thu hồi toàn bộ family", async () => {

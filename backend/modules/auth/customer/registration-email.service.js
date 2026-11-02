@@ -1,8 +1,8 @@
 
-const { sendEmail } = require("./email.service");
+const { sendEmail } = require("../../../core/email/email.service");
 const {
   renderEmailTemplate,
-} = require("../utils/email-template");
+} = require("../../../core/email/email-template");
 
 async function sendRegistrationOtpEmail({
   to,

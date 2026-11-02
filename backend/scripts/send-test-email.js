@@ -1,7 +1,7 @@
 
 const {
   sendRegistrationOtpEmail,
-} = require("../services/registration-email.service");
+} = require("../modules/auth/customer/registration-email.service");
 
 async function main() {
   try {

@@ -1,7 +1,7 @@
-﻿require("../config/env");
+require("../core/config/env");
 
-const { getRequiredEnv } = require("../config/env");
-const { revokeRefreshToken } = require("../services/refresh-token.service");
+const { getRequiredEnv } = require("../core/config/env");
+const { revokeRefreshToken } = require("../modules/auth/shared/refresh-token.service");
 
 const ADMIN_EMAIL = getRequiredEnv("ADMIN_EMAIL");
 const ADMIN_PASSWORD = getRequiredEnv("ADMIN_PASSWORD");
@@ -14,7 +14,7 @@ process.env.JWT_ACCESS_SECRET =
 
 const crypto = require("node:crypto");
 
-const prisma = require("../lib/prisma");
+const prisma = require("../core/database/prisma");
 const {
   registerCustomer,
   loginCustomer,
@@ -24,7 +24,7 @@ const {
 const {
   hashPassword,
   verifyPassword,
-} = require("../utils/password");
+} = require("../core/security/password");
 
 function createRegistrationInput(overrides = {}) {
   return {

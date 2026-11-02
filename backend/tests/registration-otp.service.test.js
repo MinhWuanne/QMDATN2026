@@ -3,12 +3,12 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 
-const prisma = require("../lib/prisma");
+const prisma = require("../core/database/prisma");
 
 const {
   issueRegistrationOtp,
   OTP_PURPOSE,
-} = require("../services/registration-otp.service");
+} = require("../modules/auth/customer/registration-otp.service");
 
 async function createTestUser() {
   return prisma.user.create({

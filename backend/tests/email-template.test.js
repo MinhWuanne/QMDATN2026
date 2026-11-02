@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 
 const {
   renderEmailTemplate,
-} = require("../utils/email-template");
+} = require("../core/email/email-template");
 
 test("Render registration OTP template with correct values", () => {
   const html = renderEmailTemplate("registration-otp.html", {

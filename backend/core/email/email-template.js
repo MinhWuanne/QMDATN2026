@@ -19,7 +19,7 @@ function escapeHtml(value) {
 function renderEmailTemplate(templateName, variables) {
   const templatePath = path.join(
     __dirname,
-    "..",
+    "../..",
     "templates",
     "emails",
     templateName

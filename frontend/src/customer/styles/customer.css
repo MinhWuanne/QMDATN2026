@@ -340,3 +340,35 @@ a {
     gap: 17px;
   }
 }
+
+.auth-resend {
+  margin-top: 22px;
+  text-align: center;
+}
+
+.auth-resend p {
+  margin: 0 0 8px;
+  color: #777;
+  font-size: 13px;
+}
+
+.auth-resend-button {
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: #171717;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.auth-resend-button:hover:not(:disabled) {
+  color: #779b22;
+}
+
+.auth-resend-button:disabled {
+  color: #999;
+  cursor: not-allowed;
+}

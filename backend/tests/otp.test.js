@@ -5,7 +5,7 @@ const {
   generateOtp,
   hashOtp,
   verifyOtp,
-} = require("../utils/otp");
+} = require("../core/security/otp");
 
 const SECRET = "test-secret-for-otp-hashing-123456789";
 

@@ -1,11 +1,12 @@
-
-const crypto = require("crypto");
-const prisma = require("../lib/prisma");
-const { sendEmail } = require("./email.service");
-const { hashPassword } = require("../utils/password");
-const { getRequiredEnv } = require("../config/env");
+﻿const crypto = require("crypto");
+const prisma = require("../../../core/database/prisma");
+const { sendEmail } = require("../../../core/email/email.service");
+const { hashPassword } = require("../../../core/security/password");
+const { getRequiredEnv } = require("../../../core/config/env");
 
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
+const RESET_WINDOW_MS = 24 * 60 * 60 * 1000;
+const RESET_MAX_REQUESTS = 3;
 
 function hashResetToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -45,26 +46,80 @@ async function requestPasswordReset(email) {
     select: {
       id: true,
       email: true,
+      role: true,
       status: true,
       emailVerifiedAt: true,
     },
   });
 
-  // Always return the same result to avoid revealing whether an account exists.
   if (
     !user ||
+    user.role !== "CUSTOMER" ||
     user.status !== "ACTIVE" ||
     !user.emailVerifiedAt
   ) {
     return { success: true };
   }
 
-  const rawToken = crypto.randomBytes(32).toString("hex");
-  const tokenHash = hashResetToken(rawToken);
-  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - RESET_WINDOW_MS);
 
-  await prisma.$transaction(async (tx) => {
-    // Invalidate previous unused reset links.
+  const resetRequest = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT 1 AS lock_acquired
+      FROM (
+        SELECT pg_advisory_xact_lock(hashtext(${user.id}))
+      ) AS lock_result
+    `;
+
+    const lockedUser = await tx.user.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        passwordResetBlockedUntil: true,
+      },
+    });
+
+    if (!lockedUser) {
+      return { allowed: false };
+    }
+
+    let effectiveWindowStart = windowStart;
+
+    if (lockedUser.passwordResetBlockedUntil) {
+      if (lockedUser.passwordResetBlockedUntil > now) {
+        return { allowed: false };
+      }
+
+      // Khóa đã hết hạn: dùng thời điểm hết khóa làm mốc cho chu kỳ mới.
+      // Giữ nguyên mốc này để các lần yêu cầu tiếp theo vẫn dùng cùng cửa sổ.
+      effectiveWindowStart = lockedUser.passwordResetBlockedUntil;
+    }
+
+    const requestCount = await tx.passwordReset.count({
+      where: {
+        userId: user.id,
+        createdAt: { gte: effectiveWindowStart },
+      },
+    });
+
+    if (requestCount >= RESET_MAX_REQUESTS) {
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetBlockedUntil: new Date(
+            now.getTime() + RESET_WINDOW_MS
+          ),
+        },
+      });
+
+      return { allowed: false };
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = hashResetToken(rawToken);
+    const expiresAt = new Date(now.getTime() + RESET_TOKEN_TTL_MS);
+
     await tx.passwordReset.updateMany({
       where: {
         userId: user.id,
@@ -72,7 +127,7 @@ async function requestPasswordReset(email) {
         revokedAt: null,
       },
       data: {
-        revokedAt: new Date(),
+        revokedAt: now,
       },
     });
 
@@ -81,12 +136,23 @@ async function requestPasswordReset(email) {
         userId: user.id,
         tokenHash,
         expiresAt,
+        createdAt: now,
       },
     });
+
+    return {
+      allowed: true,
+      rawToken,
+      tokenHash,
+    };
   });
 
+  if (!resetRequest.allowed) {
+    return { success: true };
+  }
+
   const frontendUrl = getRequiredEnv("FRONTEND_URL").replace(/\/+$/, "");
-  const resetUrl = `${frontendUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
+  const resetUrl = `${frontendUrl}/reset-password?token=${encodeURIComponent(resetRequest.rawToken)}`;
   const emailContent = createResetEmail(resetUrl);
 
   try {
@@ -95,10 +161,9 @@ async function requestPasswordReset(email) {
       ...emailContent,
     });
   } catch (error) {
-    // Revoke the token if email delivery fails.
     await prisma.passwordReset.updateMany({
       where: {
-        tokenHash,
+        tokenHash: resetRequest.tokenHash,
         usedAt: null,
         revokedAt: null,
       },
@@ -107,7 +172,6 @@ async function requestPasswordReset(email) {
       },
     });
 
-    // Do not expose email delivery errors to the public endpoint.
     console.error("Password reset email delivery failed:", error.message);
   }
 
@@ -134,6 +198,7 @@ async function resetPassword(token, newPassword) {
         revokedAt: null,
         expiresAt: { gt: now },
         user: {
+          role: "CUSTOMER",
           status: "ACTIVE",
           emailVerifiedAt: { not: null },
         },
@@ -148,7 +213,6 @@ async function resetPassword(token, newPassword) {
       throw new Error("INVALID_OR_EXPIRED_RESET_TOKEN");
     }
 
-    // Atomically claim the token to prevent reuse or concurrent resets.
     const claimed = await tx.passwordReset.updateMany({
       where: {
         id: resetRecord.id,
@@ -170,7 +234,6 @@ async function resetPassword(token, newPassword) {
       data: { passwordHash },
     });
 
-    // Force the user to sign in again on every device.
     await tx.refreshToken.updateMany({
       where: {
         userId: resetRecord.userId,
@@ -181,7 +244,6 @@ async function resetPassword(token, newPassword) {
       },
     });
 
-    // Invalidate all other outstanding reset links.
     await tx.passwordReset.updateMany({
       where: {
         userId: resetRecord.userId,
