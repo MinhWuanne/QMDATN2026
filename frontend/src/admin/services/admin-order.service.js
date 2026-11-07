@@ -104,7 +104,7 @@ export const adminOrderService = {
     const suffix = query.toString() ? `?${query.toString()}` : "";
 
     return adminOrderRequest(
-      `/${suffix}`,
+      suffix,
       { method: "GET" },
       accessToken,
       onTokenRefreshed
