@@ -10,6 +10,7 @@ const prisma = require("./core/database/prisma");
 
 const authRoutes = require("./routes/auth.routes");
 const adminAuthRoutes = require("./routes/admin-auth.routes");
+const orderRoutes = require("./modules/order/order.routes");
 const errorHandler = require("./middlewares/error.middleware");
 
 const app = express();
@@ -17,6 +18,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const adminCatalogRoutes = require("./routes/admin/catalog.routes");
+
 
 // Render runs behind a reverse proxy.
 if (process.env.NODE_ENV === "production") {
@@ -98,6 +100,8 @@ app.get("/api/db-health", async (req, res) => {
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/admin/auth", authLimiter, adminAuthRoutes);
 app.use("/api/admin/catalog", adminCatalogRoutes);
+app.use("/api/orders", orderRoutes.customerOrderRouter);
+app.use("/api/admin/orders", orderRoutes.adminOrderRouter);
 
 // Error handler must be registered last.
 app.use(errorHandler);
