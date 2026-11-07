@@ -237,11 +237,13 @@ export default function OrderManagementPage({
         onSessionUpdate
       );
 
-      setOrders(Array.isArray(result.data) ? result.data : []);
+      setOrders(
+        Array.isArray(result.data?.data) ? result.data.data : []
+      );
 
       setPagination((current) => ({
         ...current,
-        ...(result.pagination || {}),
+        ...(result.data?.pagination || {}),
       }));
     } catch (err) {
       setError(err.message || "Không thể tải danh sách đơn hàng.");
@@ -977,8 +979,8 @@ export default function OrderManagementPage({
 
                       {(!selectedOrder.items ||
                         selectedOrder.items.length === 0) && (
-                        <p>Không có sản phẩm trong đơn hàng.</p>
-                      )}
+                          <p>Không có sản phẩm trong đơn hàng.</p>
+                        )}
                     </div>
                   </div>
 
@@ -1051,8 +1053,8 @@ export default function OrderManagementPage({
 
                       {(!selectedOrder.statusHistory ||
                         selectedOrder.statusHistory.length === 0) && (
-                        <p>Chưa có lịch sử trạng thái.</p>
-                      )}
+                          <p>Chưa có lịch sử trạng thái.</p>
+                        )}
                     </div>
                   </div>
 
@@ -1083,8 +1085,8 @@ export default function OrderManagementPage({
                           {actionLoading
                             ? "Đang xử lý..."
                             : STATUS_ACTION_LABELS[
-                                getNextStatus(selectedOrder)
-                              ]}
+                            getNextStatus(selectedOrder)
+                            ]}
                         </button>
                       )}
 
