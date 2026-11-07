@@ -44,9 +44,7 @@ export default function AdminApp() {
           });
         }
       })
-      .catch(() => {
-        // Chưa đăng nhập hoặc refresh token không còn hợp lệ.
-      })
+      .catch(() => {})
       .finally(() => {
         if (active) setChecking(false);
       });
@@ -55,6 +53,20 @@ export default function AdminApp() {
       active = false;
     };
   }, []);
+
+  function handleSessionUpdate(data) {
+    setSession({
+      user: data.user,
+      accessToken: data.accessToken,
+    });
+  }
+
+  function handleLogin(data) {
+    setSession({
+      user: data.user,
+      accessToken: data.tokens.accessToken,
+    });
+  }
 
   async function handleLogout() {
     if (logoutLoading) return;
@@ -82,21 +94,14 @@ export default function AdminApp() {
   }
 
   if (!session) {
-    return (
-      <AdminLogin
-        onLogin={(data) =>
-          setSession({
-            user: data.user,
-            accessToken: data.tokens.accessToken,
-          })
-        }
-      />
-    );
+    return <AdminLogin onLogin={handleLogin} />;
   }
 
   return (
     <AdminDashboard
       user={session.user}
+      accessToken={session.accessToken}
+      onSessionUpdate={handleSessionUpdate}
       onLogout={handleLogout}
       logoutLoading={logoutLoading}
       error={error}

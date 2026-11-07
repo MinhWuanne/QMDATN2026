@@ -10,7 +10,8 @@
 }
 
 function assertUuid(id) {
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
   if (!uuidPattern.test(id || "")) {
     const error = new Error("VALIDATION_ERROR");
@@ -19,12 +20,11 @@ function assertUuid(id) {
   }
 }
 
-function parseListQuery(query) {
+function parseListQuery(query = {}) {
   const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
   const limit = Math.min(100, Math.max(1, Number.parseInt(query.limit, 10) || 20));
 
   let isActive;
-
   if (query.isActive === "true") isActive = true;
   if (query.isActive === "false") isActive = false;
 
@@ -39,7 +39,19 @@ function parseListQuery(query) {
 
 function handleUniqueError(error, entity) {
   if (error.code === "P2002") {
-    throw new Error(`${entity}_SLUG_EXISTS`);
+    const target = Array.isArray(error.meta?.target)
+      ? error.meta.target.join(",")
+      : String(error.meta?.target || "");
+
+    if (target.includes("slug")) {
+      throw new Error(`${entity}_SLUG_EXISTS`);
+    }
+
+    throw new Error(`${entity}_CONFLICT`);
+  }
+
+  if (error.code === "P2003") {
+    throw new Error(`${entity}_IN_USE`);
   }
 
   throw error;

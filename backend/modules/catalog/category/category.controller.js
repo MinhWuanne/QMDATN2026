@@ -1,26 +1,18 @@
-﻿const service = require("./category.service");
+﻿
+const service = require("./category.service");
 
 async function listCategories(req, res) {
   const result = await service.listCategories(req.query);
-
-  return res.status(200).json({
-    success: true,
-    ...result,
-  });
+  return res.status(200).json({ success: true, ...result });
 }
 
 async function getCategory(req, res) {
   const category = await service.getCategoryById(req.params.id);
-
-  return res.status(200).json({
-    success: true,
-    data: category,
-  });
+  return res.status(200).json({ success: true, data: category });
 }
 
 async function createCategory(req, res) {
   const category = await service.createCategory(req.body);
-
   return res.status(201).json({
     success: true,
     message: "CATEGORY_CREATED",
@@ -30,11 +22,21 @@ async function createCategory(req, res) {
 
 async function updateCategory(req, res) {
   const category = await service.updateCategory(req.params.id, req.body);
-
   return res.status(200).json({
     success: true,
     message: "CATEGORY_UPDATED",
     data: category,
+  });
+}
+
+async function deleteCategory(req, res) {
+  const result = await service.deleteCategory(req.params.id);
+  return res.status(200).json({
+    success: true,
+    message: result.deactivated
+      ? "CATEGORY_DEACTIVATED"
+      : "CATEGORY_DELETED",
+    ...result,
   });
 }
 
@@ -43,4 +45,5 @@ module.exports = {
   getCategory,
   createCategory,
   updateCategory,
+  deleteCategory,
 };

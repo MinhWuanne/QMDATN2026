@@ -1,4 +1,5 @@
-﻿const prisma = require("../../../core/database/prisma");
+﻿
+const prisma = require("../../../core/database/prisma");
 const {
   toSlug,
   assertUuid,
@@ -27,9 +28,7 @@ async function listBrands(query = {}) {
       skip,
       take: limit,
       orderBy: { createdAt: "desc" },
-      include: {
-        _count: { select: { products: true } },
-      },
+      include: { _count: { select: { products: true } } },
     }),
     prisma.brand.count({ where }),
   ]);
@@ -50,18 +49,15 @@ async function getBrandById(id) {
 
   const brand = await prisma.brand.findUnique({
     where: { id },
-    include: {
-      _count: { select: { products: true } },
-    },
+    include: { _count: { select: { products: true } } },
   });
 
   if (!brand) throw new Error("BRAND_NOT_FOUND");
-
   return brand;
 }
 
 async function createBrand(input) {
-  const slug = input.slug ? toSlug(input.slug) : toSlug(input.name);
+  const slug = toSlug(input.slug || input.name);
 
   if (!slug) {
     const error = new Error("VALIDATION_ERROR");
@@ -93,8 +89,7 @@ async function updateBrand(id, input) {
   const data = { ...input };
 
   if (input.name !== undefined || input.slug !== undefined) {
-    const source = input.slug ?? input.name ?? existing.slug;
-    data.slug = toSlug(source);
+    data.slug = toSlug(input.slug ?? input.name);
 
     if (!data.slug) {
       const error = new Error("VALIDATION_ERROR");
@@ -104,10 +99,34 @@ async function updateBrand(id, input) {
   }
 
   try {
-    return await prisma.brand.update({
+    return await prisma.brand.update({ where: { id }, data });
+  } catch (error) {
+    handleUniqueError(error, "BRAND");
+  }
+}
+
+async function deleteBrand(id) {
+  assertUuid(id);
+
+  const existing = await prisma.brand.findUnique({
+    where: { id },
+    include: { _count: { select: { products: true } } },
+  });
+
+  if (!existing) throw new Error("BRAND_NOT_FOUND");
+
+  if (existing._count.products > 0) {
+    const brand = await prisma.brand.update({
       where: { id },
-      data,
+      data: { isActive: false },
     });
+
+    return { deleted: false, deactivated: true, data: brand };
+  }
+
+  try {
+    await prisma.brand.delete({ where: { id } });
+    return { deleted: true, deactivated: false };
   } catch (error) {
     handleUniqueError(error, "BRAND");
   }
@@ -118,4 +137,5 @@ module.exports = {
   getBrandById,
   createBrand,
   updateBrand,
+  deleteBrand,
 };

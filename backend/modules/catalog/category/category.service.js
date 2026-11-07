@@ -1,4 +1,5 @@
-﻿const prisma = require("../../../core/database/prisma");
+﻿
+const prisma = require("../../../core/database/prisma");
 const {
   toSlug,
   assertUuid,
@@ -27,9 +28,7 @@ async function listCategories(query = {}) {
       skip,
       take: limit,
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-      include: {
-        _count: { select: { products: true } },
-      },
+      include: { _count: { select: { products: true } } },
     }),
     prisma.category.count({ where }),
   ]);
@@ -50,18 +49,15 @@ async function getCategoryById(id) {
 
   const category = await prisma.category.findUnique({
     where: { id },
-    include: {
-      _count: { select: { products: true } },
-    },
+    include: { _count: { select: { products: true } } },
   });
 
   if (!category) throw new Error("CATEGORY_NOT_FOUND");
-
   return category;
 }
 
 async function createCategory(input) {
-  const slug = input.slug ? toSlug(input.slug) : toSlug(input.name);
+  const slug = toSlug(input.slug || input.name);
 
   if (!slug) {
     const error = new Error("VALIDATION_ERROR");
@@ -94,8 +90,7 @@ async function updateCategory(id, input) {
   const data = { ...input };
 
   if (input.name !== undefined || input.slug !== undefined) {
-    const source = input.slug ?? input.name ?? existing.slug;
-    data.slug = toSlug(source);
+    data.slug = toSlug(input.slug ?? input.name);
 
     if (!data.slug) {
       const error = new Error("VALIDATION_ERROR");
@@ -105,10 +100,34 @@ async function updateCategory(id, input) {
   }
 
   try {
-    return await prisma.category.update({
+    return await prisma.category.update({ where: { id }, data });
+  } catch (error) {
+    handleUniqueError(error, "CATEGORY");
+  }
+}
+
+async function deleteCategory(id) {
+  assertUuid(id);
+
+  const existing = await prisma.category.findUnique({
+    where: { id },
+    include: { _count: { select: { products: true } } },
+  });
+
+  if (!existing) throw new Error("CATEGORY_NOT_FOUND");
+
+  if (existing._count.products > 0) {
+    const category = await prisma.category.update({
       where: { id },
-      data,
+      data: { isActive: false },
     });
+
+    return { deleted: false, deactivated: true, data: category };
+  }
+
+  try {
+    await prisma.category.delete({ where: { id } });
+    return { deleted: true, deactivated: false };
   } catch (error) {
     handleUniqueError(error, "CATEGORY");
   }
@@ -119,4 +138,5 @@ module.exports = {
   getCategoryById,
   createCategory,
   updateCategory,
+  deleteCategory,
 };
