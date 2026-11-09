@@ -33,6 +33,7 @@ const ADMIN_CANCELLABLE_STATUSES = [
     "PENDING_CONFIRMATION",
     "CONFIRMED",
     "PROCESSING",
+    "SHIPPING",
 ];
 
 const ORDER_INCLUDE = {
@@ -272,6 +273,64 @@ async function getValidatedCart(tx, userId) {
     return { cart, items: validatedItems };
 }
 
+// Restore eligible order items to customer's cart after cancellation.
+async function restoreOrderItemsToCart(tx, order) {
+    if (!order?.userId || !Array.isArray(order.items)) {
+        throwError("INVALID_ORDER_DATA", 400);
+    }
+
+    const cart = await tx.cart.upsert({
+        where: {
+            userId: order.userId,
+        },
+        create: {
+            userId: order.userId,
+        },
+        update: {},
+    });
+
+    for (const item of order.items) {
+        const variant = await tx.productVariant.findFirst({
+            where: {
+                id: item.variantId,
+                isActive: true,
+                product: {
+                    is: {
+                        status: "ACTIVE",
+                    },
+                },
+            },
+            select: {
+                id: true,
+            },
+        });
+
+        // Do not restore products or variants that are no longer sellable.
+        if (!variant) continue;
+
+        await tx.cartItem.upsert({
+            where: {
+                cartId_variantId: {
+                    cartId: cart.id,
+                    variantId: item.variantId,
+                },
+            },
+            create: {
+                cartId: cart.id,
+                variantId: item.variantId,
+                quantity: item.quantity,
+            },
+            update: {
+                quantity: {
+                    increment: item.quantity,
+                },
+            },
+        });
+    }
+
+    return cart;
+}
+
 
 // ==========================================
 // INVENTORY HELPERS
@@ -419,7 +478,7 @@ async function deductReservedInventory(tx, order, adminId) {
 
 // Restore on-hand stock after an already-confirmed order is cancelled.
 
-async function restoreSoldInventory(tx, order, adminId) {
+async function restoreSoldInventory(tx, order, actorId) {
     for (const item of order.items) {
         const inventory = await tx.inventory.findUnique({
             where: { variantId: item.variantId },
@@ -455,7 +514,7 @@ async function restoreSoldInventory(tx, order, adminId) {
                 afterStock: inventory.quantityOnHand + item.quantity,
                 referenceId: order.id,
                 note: `Stock restored after cancelling order ${order.orderNumber}`,
-                createdBy: adminId,
+                createdBy: actorId,
             },
         });
     }
@@ -625,6 +684,276 @@ async function createOrder(userId, input) {
 // CUSTOMER: LIST ORDERS
 // ==========================================
 
+// ==========================================
+// START VNPAY CHECKOUT
+// ==========================================
+
+async function startCheckout(orderId, userId) {
+    assertUuid(orderId, "orderId");
+    assertUuid(userId, "userId");
+
+    return prisma.$transaction(async (tx) => {
+        const order = await tx.order.findFirst({
+            where: {
+                id: orderId,
+                userId,
+            },
+            include: {
+                payment: true,
+            },
+        });
+
+        if (!order) {
+            throwError("ORDER_NOT_FOUND", 404);
+        }
+
+        if (order.paymentMethod !== "VNPAY") {
+            throwError("CHECKOUT_NOT_REQUIRED", 409);
+        }
+
+        if (order.status !== "PENDING_CONFIRMATION") {
+            throwError("ORDER_NOT_AVAILABLE_FOR_CHECKOUT", 409);
+        }
+
+        if (!order.payment) {
+            throwError("PAYMENT_NOT_FOUND", 404);
+        }
+
+        if (order.payment.method !== "VNPAY") {
+            throwError("PAYMENT_METHOD_MISMATCH", 409);
+        }
+
+        if (order.payment.status !== "PENDING") {
+            throwError("PAYMENT_NOT_PENDING", 409);
+        }
+
+        const now = new Date();
+
+        // Không gia hạn phiên checkout đã bắt đầu.
+        if (order.payment.checkoutStartedAt) {
+            if (
+                !order.payment.expiresAt ||
+                order.payment.expiresAt <= now
+            ) {
+                throwError("PAYMENT_SESSION_EXPIRED", 409);
+            }
+        } else {
+            const expiresAt = new Date(
+                now.getTime() + 10 * 60 * 1000
+            );
+
+            // Atomic update: chỉ một request được khởi tạo phiên.
+            const result = await tx.payment.updateMany({
+                where: {
+                    id: order.payment.id,
+                    status: "PENDING",
+                    checkoutStartedAt: null,
+                },
+                data: {
+                    checkoutStartedAt: now,
+                    expiresAt,
+                },
+            });
+
+            let payment;
+
+            if (result.count === 1) {
+                payment = await tx.payment.findUnique({
+                    where: {
+                        id: order.payment.id,
+                    },
+                });
+            } else {
+                // Một request khác có thể đã khởi tạo phiên trước.
+                payment = await tx.payment.findUnique({
+                    where: {
+                        id: order.payment.id,
+                    },
+                });
+            }
+
+            if (
+                !payment ||
+                !payment.checkoutStartedAt ||
+                !payment.expiresAt
+            ) {
+                throwError("CHECKOUT_SESSION_INITIALIZATION_FAILED", 409);
+            }
+
+            if (payment.expiresAt <= new Date()) {
+                throwError("PAYMENT_SESSION_EXPIRED", 409);
+            }
+
+            order.payment = payment;
+        }
+
+        const remainingSeconds = Math.max(
+            0,
+            Math.ceil(
+                (order.payment.expiresAt.getTime() - Date.now()) / 1000
+            )
+        );
+
+        return {
+            orderId: order.id,
+            paymentId: order.payment.id,
+            paymentMethod: order.payment.method,
+            paymentStatus: order.payment.status,
+            checkoutStartedAt: order.payment.checkoutStartedAt,
+            expiresAt: order.payment.expiresAt,
+            remainingSeconds,
+        };
+    });
+}
+
+async function expirePendingVnpayOrders() {
+
+    const scanTime = new Date();
+
+    const expiredPayments = await prisma.payment.findMany({
+        where: {
+            method: "VNPAY",
+            status: "PENDING",
+            checkoutStartedAt: { not: null },
+            expiresAt: { lte: scanTime },
+            order: {
+                is: {
+                    paymentMethod: "VNPAY",
+                    status: "PENDING_CONFIRMATION",
+                },
+            },
+        },
+        select: {
+            id: true,
+        },
+        orderBy: {
+            expiresAt: "asc",
+        },
+        take: 100,
+    });
+
+    let expiredCount = 0;
+
+    for (const candidate of expiredPayments) {
+        try {
+            const now = new Date();
+
+            const expired = await prisma.$transaction(
+                async (tx) => {
+                    const payment = await tx.payment.findUnique({
+                        where: { id: candidate.id },
+                        include: {
+                            order: {
+                                include: {
+                                    items: true,
+                                },
+                            },
+                        },
+                    });
+
+                    if (
+                        !payment ||
+                        payment.method !== "VNPAY" ||
+                        payment.status !== "PENDING" ||
+                        !payment.expiresAt ||
+                        payment.expiresAt > now ||
+                        !payment.order ||
+                        payment.order.paymentMethod !== "VNPAY" ||
+                        payment.order.status !== "PENDING_CONFIRMATION"
+                    ) {
+                        return false;
+                    }
+
+                    // Step 1: Claim the expired payment using CAS.
+                    const paymentResult = await tx.payment.updateMany({
+                        where: {
+                            id: payment.id,
+                            method: "VNPAY",
+                            status: "PENDING",
+                            expiresAt: { lte: now },
+                        },
+                        data: {
+                            status: "CANCELLED",
+                        },
+                    });
+
+                    if (paymentResult.count !== 1) {
+                        return false;
+                    }
+
+                    // Step 2: Cancel the order using CAS.
+                    const orderResult = await tx.order.updateMany({
+                        where: {
+                            id: payment.order.id,
+                            paymentMethod: "VNPAY",
+                            status: "PENDING_CONFIRMATION",
+                        },
+                        data: {
+                            status: "CANCELLED",
+                            cancelledAt: now,
+                        },
+                    });
+
+                    if (orderResult.count !== 1) {
+                        // Roll back the payment update as well.
+                        const error = new Error("VNPAY_EXPIRY_ORDER_RACE");
+                        error.code = "VNPAY_EXPIRY_ORDER_RACE";
+                        throw error;
+                    }
+
+                    // Step 3: Release reserved inventory.
+                    for (const item of payment.order.items) {
+                        await releaseReservedInventory(tx, item);
+                    }
+
+                    // Step 4: Restore eligible items to the cart.
+                    await restoreOrderItemsToCart(tx, payment.order);
+
+                    // Step 5: Record order history.
+                    await createOrderHistory(tx, {
+                        orderId: payment.order.id,
+                        changedById: null,
+                        oldStatus: "PENDING_CONFIRMATION",
+                        newStatus: "CANCELLED",
+                        note: "VNPAY checkout expired after 10 minutes",
+                    });
+
+                    // Step 6: Release voucher usage.
+                    await tx.voucherUsage.deleteMany({
+                        where: {
+                            orderId: payment.order.id,
+                        },
+                    });
+
+                    return true;
+                },
+                {
+                    isolationLevel:
+                        Prisma.TransactionIsolationLevel.Serializable,
+                }
+            );
+
+            if (expired) {
+                expiredCount++;
+            }
+        } catch (error) {
+            if (
+                error.code === "VNPAY_EXPIRY_ORDER_RACE" ||
+                error.code === "P2034"
+            ) {
+                continue;
+            }
+
+            throw error;
+        }
+    }
+
+    return {
+        scanned: expiredPayments.length,
+        expired: expiredCount,
+    };
+}
+
 async function listMyOrders(userId, query = {}) {
     assertUuid(userId, "userId");
 
@@ -690,6 +1019,7 @@ async function getMyOrderById(userId, orderId) {
 // Only PENDING_CONFIRMATION
 // ==========================================
 
+
 async function cancelMyOrder(userId, orderId, note = null) {
     assertUuid(userId, "userId");
     assertUuid(orderId, "orderId");
@@ -712,19 +1042,42 @@ async function cancelMyOrder(userId, orderId, note = null) {
                     throwError("ORDER_NOT_FOUND", 404);
                 }
 
-                if (order.status !== "PENDING_CONFIRMATION") {
-                    throwError("ORDER_CANNOT_BE_CANCELLED", 409);
+                // Only COD and unpaid VNPAY orders can use normal cancellation.
+                if (!["COD", "VNPAY"].includes(order.paymentMethod)) {
+                    throwError("UNSUPPORTED_PAYMENT_METHOD", 409);
                 }
 
+                // Paid orders must go through customer service and refund.
                 if (order.payment?.status === "PAID") {
                     throwError("PAID_ORDER_REQUIRES_REFUND", 409);
                 }
 
-                // Step 1: Update order status using compare-and-set (CAS).
+                const allowedStatuses =
+                    order.paymentMethod === "COD"
+                        ? [
+                            "PENDING_CONFIRMATION",
+                            "CONFIRMED",
+                            "PROCESSING",
+                            "SHIPPING",
+                        ]
+                        : ["PENDING_CONFIRMATION"];
+
+                if (!allowedStatuses.includes(order.status)) {
+                    throwError("ORDER_CANNOT_BE_CANCELLED", 409);
+                }
+
+                if (
+                    order.payment?.status !== "PENDING" &&
+                    order.payment?.status !== "FAILED"
+                ) {
+                    throwError("PAYMENT_CANNOT_BE_CANCELLED", 409);
+                }
+
+                // Step 1: Cancel order using compare-and-set.
                 const result = await tx.order.updateMany({
                     where: {
                         id: order.id,
-                        status: "PENDING_CONFIRMATION",
+                        status: order.status,
                     },
                     data: {
                         status: "CANCELLED",
@@ -736,12 +1089,23 @@ async function cancelMyOrder(userId, orderId, note = null) {
                     throwError("ORDER_CONCURRENT_UPDATE", 409);
                 }
 
-                // Step 2: Release reserved inventory.
-                for (const item of order.items) {
-                    await releaseReservedInventory(tx, item);
+                // Step 2: Restore inventory according to order lifecycle.
+                if (order.status === "PENDING_CONFIRMATION") {
+                    // Stock was reserved but not deducted.
+                    for (const item of order.items) {
+                        await releaseReservedInventory(tx, item);
+                    }
+                } else {
+                    // Stock was already deducted after confirmation.
+                    // userId is valid because InventoryMovement.createdBy
+                    // references User, not exclusively Admin.
+                    await restoreSoldInventory(tx, order, userId);
                 }
 
-                // Step 3: Create order status history.
+                // Step 3: Restore eligible items to customer's cart.
+                await restoreOrderItemsToCart(tx, order);
+
+                // Step 4: Create order status history.
                 await createOrderHistory(tx, {
                     orderId: order.id,
                     changedById: userId,
@@ -750,32 +1114,46 @@ async function cancelMyOrder(userId, orderId, note = null) {
                     note: note || "Cancelled by customer",
                 });
 
-                // Step 4: Remove voucher usage.
+                // Step 5: Release voucher usage.
                 await tx.voucherUsage.deleteMany({
-                    where: { orderId: order.id },
+                    where: {
+                        orderId: order.id,
+                    },
                 });
 
-                // Step 5: Cancel pending payment.
-                if (order.payment?.status === "PENDING") {
-                    await tx.payment.update({
-                        where: { id: order.payment.id },
-                        data: { status: "CANCELLED" },
+                // Step 6: Cancel unpaid payment.
+                if (
+                    order.payment &&
+                    ["PENDING", "FAILED"].includes(order.payment.status)
+                ) {
+                    await tx.payment.updateMany({
+                        where: {
+                            id: order.payment.id,
+                            status: order.payment.status,
+                        },
+                        data: {
+                            status: "CANCELLED",
+                        },
                     });
                 }
 
                 return tx.order.findUnique({
-                    where: { id: order.id },
+                    where: {
+                        id: order.id,
+                    },
                     include: ORDER_INCLUDE,
                 });
             },
             {
-                isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+                isolationLevel:
+                    Prisma.TransactionIsolationLevel.Serializable,
             }
         );
     } catch (error) {
         handleOrderError(error);
     }
 }
+
 
 // ==========================================
 // ADMIN: LIST ORDERS
@@ -907,6 +1285,10 @@ async function markOrderPaid(orderId, adminId, note = null) {
                     throwError("COD_PAYMENT_METHOD_REQUIRED", 409);
                 }
 
+                if (order.status !== "DELIVERED") {
+                    throwError("COD_PAYMENT_REQUIRES_DELIVERED_ORDER", 409);
+                }
+
                 if (!order.payment) {
                     throwError("PAYMENT_NOT_FOUND", 404);
                 }
@@ -992,8 +1374,29 @@ async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
                     throwError("ORDER_NOT_FOUND", 404);
                 }
 
-                if (!order.payment || order.payment.status !== "PAID") {
+                if (!order.payment) {
+                    throwError("PAYMENT_NOT_FOUND", 404);
+                }
+
+                if (
+                    order.paymentMethod === "VNPAY" &&
+                    order.payment.status !== "PAID"
+                ) {
                     throwError("ORDER_PAYMENT_NOT_PAID", 409);
+                }
+
+                if (
+                    order.paymentMethod === "COD" &&
+                    newStatus === "COMPLETED" &&
+                    order.payment.status !== "PAID"
+                ) {
+                    throwError("COD_PAYMENT_NOT_COLLECTED", 409);
+                }
+
+                if (
+                    !["COD", "VNPAY"].includes(order.paymentMethod)
+                ) {
+                    throwError("UNSUPPORTED_PAYMENT_METHOD", 409);
                 }
 
                 const allowedNextStatuses =
@@ -1083,6 +1486,11 @@ async function cancelAdminOrder(orderId, adminId, note = null) {
                     throwError("ORDER_CANNOT_BE_CANCELLED", 409);
                 }
 
+                // Paid orders require a successful refund before cancellation.
+                if (order.payment?.status === "PAID") {
+                    throwError("PAID_ORDER_REQUIRES_REFUND", 409);
+                }
+
                 // Step 1: Update order status using compare-and-set (CAS).
                 const updateResult = await tx.order.updateMany({
                     where: {
@@ -1106,7 +1514,7 @@ async function cancelAdminOrder(orderId, adminId, note = null) {
                         await releaseReservedInventory(tx, item);
                     }
                 } else if (
-                    ["CONFIRMED", "PROCESSING"].includes(order.status)
+                    ["CONFIRMED", "PROCESSING", "SHIPPING"].includes(order.status)
                 ) {
                     // Stock was already deducted at confirmation.
                     await restoreSoldInventory(tx, order, adminId);
@@ -1164,4 +1572,6 @@ module.exports = {
     markOrderPaid,
     updateOrderStatus,
     cancelAdminOrder,
+    startCheckout,
+    expirePendingVnpayOrders,
 };

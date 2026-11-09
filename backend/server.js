@@ -10,7 +10,9 @@ const prisma = require("./core/database/prisma");
 
 const authRoutes = require("./routes/auth.routes");
 const adminAuthRoutes = require("./routes/admin-auth.routes");
+
 const orderRoutes = require("./modules/order/order.routes");
+const paymentRoutes = require("./modules/payment/payment.routes");
 const errorHandler = require("./middlewares/error.middleware");
 
 const app = express();
@@ -100,8 +102,10 @@ app.get("/api/db-health", async (req, res) => {
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/admin/auth", authLimiter, adminAuthRoutes);
 app.use("/api/admin/catalog", adminCatalogRoutes);
+
 app.use("/api/orders", orderRoutes.customerOrderRouter);
 app.use("/api/admin/orders", orderRoutes.adminOrderRouter);
+app.use("/api/payments", paymentRoutes);
 
 // Error handler must be registered last.
 app.use(errorHandler);

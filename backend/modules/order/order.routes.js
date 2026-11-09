@@ -23,6 +23,14 @@ router.post(
     orderController.createOrder
 );
 
+router.post(
+    "/:orderId/checkout",
+    authorize("CUSTOMER"),
+    validate(orderValidator.orderIdParamsSchema, "params"),
+    validate(orderValidator.startCheckoutSchema),
+    orderController.startCheckout
+);
+
 // Danh sách đơn hàng của khách
 router.get(
     "/",

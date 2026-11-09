@@ -1,9 +1,30 @@
+let lastVnpayExpiryCheck = 0;
+let vnpayExpiryCheckPromise = null;
 
-const orderService = require("./order.service");
+const VNPAY_EXPIRY_CHECK_INTERVAL = 60 * 1000;
 
-// ==========================================
-// CUSTOMER
-// ==========================================
+async function processExpiredVnpayOrders() {
+    const now = Date.now();
+
+    if (now - lastVnpayExpiryCheck < VNPAY_EXPIRY_CHECK_INTERVAL) {
+        return;
+    }
+
+    if (vnpayExpiryCheckPromise) {
+        return vnpayExpiryCheckPromise;
+    }
+
+    vnpayExpiryCheckPromise = (async () => {
+        try {
+            await orderService.expirePendingVnpayOrders();
+            lastVnpayExpiryCheck = Date.now();
+        } finally {
+            vnpayExpiryCheckPromise = null;
+        }
+    })();
+
+    return vnpayExpiryCheckPromise;
+}
 
 async function createOrder(req, res, next) {
     try {
@@ -22,8 +43,40 @@ async function createOrder(req, res, next) {
     }
 }
 
+async function startCheckout(req, res, next) {
+    try {
+        // Khởi tạo hoặc lấy lại phiên checkout 10 phút.
+        const checkout = await orderService.startCheckout(
+            req.params.orderId,
+            req.user.id
+        );
+
+        // Tạo URL VNPAY hoặc sử dụng URL đã tạo trước đó.
+        const payment = await paymentService.createOrGetVnpayPaymentUrl({
+            orderId: req.params.orderId,
+            userId: req.user.id,
+            ipAddr: req.ip,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Checkout session started successfully",
+            data: {
+                ...checkout,
+                paymentUrl: payment.paymentUrl,
+                txnRef: payment.txnRef,
+                reused: payment.reused,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 async function listMyOrders(req, res, next) {
     try {
+        await processExpiredVnpayOrders();
+
         const orders = await orderService.listMyOrders(
             req.user.id,
             res.locals.validatedQuery
@@ -40,6 +93,8 @@ async function listMyOrders(req, res, next) {
 
 async function getMyOrderById(req, res, next) {
     try {
+        await processExpiredVnpayOrders();
+
         const order = await orderService.getMyOrderById(
             req.user.id,
             req.params.orderId
@@ -80,6 +135,8 @@ async function cancelMyOrder(req, res, next) {
 
 async function listAdminOrders(req, res, next) {
     try {
+        await processExpiredVnpayOrders();
+
         const orders = await orderService.listAdminOrders(
             res.locals.validatedQuery
         );
@@ -174,4 +231,5 @@ module.exports = {
     updateOrderStatus,
     markOrderPaid,
     cancelAdminOrder,
+    startCheckout,
 };

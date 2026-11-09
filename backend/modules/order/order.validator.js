@@ -103,6 +103,12 @@ const orderIdParamsSchema = z.object({
 }).strict();
 
 // ==========================================
+// START CHECKOUT
+// ==========================================
+
+const startCheckoutSchema = z.object({}).strict();
+
+// ==========================================
 // CANCEL ORDER
 // ==========================================
 
@@ -201,4 +207,5 @@ module.exports = {
     adminOrderListQuerySchema,
     updateOrderStatusSchema,
     markOrderPaidSchema,
+    startCheckoutSchema,
 };
