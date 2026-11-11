@@ -60,6 +60,18 @@ const ERROR_STATUS_MAP = {
     BRAND_INACTIVE: 409,
 
     PRODUCT_VARIANT_INACTIVE: 409,
+
+    // ==========================================
+    // VOUCHERS
+    // ==========================================
+
+    VOUCHER_NOT_FOUND: 404,
+
+    VOUCHER_CODE_EXISTS: 409,
+    VOUCHER_CONFLICT: 409,
+
+    VOUCHER_TERMS_LOCKED_AFTER_USAGE: 409,
+    VOUCHER_USAGE_LIMIT_BELOW_USED: 409,
 };
 
 function errorHandler(err, req, res, next) {

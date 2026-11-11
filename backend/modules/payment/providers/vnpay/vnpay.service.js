@@ -102,7 +102,7 @@ function buildVnpayParams({
         vnp_Amount: toVnpayAmount(payment.amount),
         vnp_CurrCode: VNPAY_CURRENCY,
         vnp_TxnRef: txnRef,
-        vnp_OrderInfo: `Thanh toan don hang ${order.orderNumber}`,
+        vnp_OrderInfo: `Thanh toan don hang ${order.orderNumber.replace(/[^a-zA-Z0-9]/g, " ")}`,
         vnp_OrderType: "other",
         vnp_Locale: VNPAY_LOCALE,
         vnp_ReturnUrl: config.returnUrl,

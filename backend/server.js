@@ -20,7 +20,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const adminCatalogRoutes = require("./routes/admin/catalog.routes");
-
+const adminVoucherRoutes = require("./routes/admin/voucher.routes");
 
 // Render runs behind a reverse proxy.
 if (process.env.NODE_ENV === "production") {
@@ -106,6 +106,8 @@ app.use("/api/admin/catalog", adminCatalogRoutes);
 app.use("/api/orders", orderRoutes.customerOrderRouter);
 app.use("/api/admin/orders", orderRoutes.adminOrderRouter);
 app.use("/api/payments", paymentRoutes);
+
+app.use("/api/admin/vouchers", adminVoucherRoutes);
 
 // Error handler must be registered last.
 app.use(errorHandler);
