@@ -72,6 +72,15 @@ const ERROR_STATUS_MAP = {
 
     VOUCHER_TERMS_LOCKED_AFTER_USAGE: 409,
     VOUCHER_USAGE_LIMIT_BELOW_USED: 409,
+
+    // ==========================================
+    // MEMBERS
+    // ==========================================
+
+    MEMBER_NOT_FOUND: 404,
+    MEMBER_STATUS_INVALID: 400,
+    MEMBER_STATUS_UNCHANGED: 409,
+    MEMBER_CONCURRENT_UPDATE: 409,
 };
 
 function errorHandler(err, req, res, next) {

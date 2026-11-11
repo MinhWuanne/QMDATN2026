@@ -21,6 +21,7 @@ const PORT = process.env.PORT || 3000;
 
 const adminCatalogRoutes = require("./routes/admin/catalog.routes");
 const adminVoucherRoutes = require("./routes/admin/voucher.routes");
+const adminMemberRoutes = require("./routes/admin/member.routes");
 
 // Render runs behind a reverse proxy.
 if (process.env.NODE_ENV === "production") {
@@ -108,6 +109,7 @@ app.use("/api/admin/orders", orderRoutes.adminOrderRouter);
 app.use("/api/payments", paymentRoutes);
 
 app.use("/api/admin/vouchers", adminVoucherRoutes);
+app.use("/api/admin/members", adminMemberRoutes);
 
 // Error handler must be registered last.
 app.use(errorHandler);
