@@ -1,4 +1,5 @@
 const prisma = require("../../core/database/prisma");
+const { Prisma } = require("@prisma/client");
 
 const COMMERCIAL_FIELDS = [
     "code",
@@ -33,6 +34,28 @@ function normalizeVoucherCode(code) {
     return code.trim().toUpperCase();
 }
 
+const DECIMAL_FIELDS = [
+    "discountValue",
+    "maxDiscount",
+    "minOrderAmount",
+];
+
+function areVoucherValuesEqual(field, incoming, existing) {
+    if (field === "code") {
+        return normalizeVoucherCode(incoming) === existing;
+    }
+
+    if (DECIMAL_FIELDS.includes(field)) {
+        if (incoming === null || existing === null) {
+            return incoming === existing;
+        }
+
+        return new Prisma.Decimal(incoming).equals(existing);
+    }
+
+    return incoming === existing;
+}
+
 function validateCompleteVoucher(input) {
     if (
         input.discountType === "PERCENTAGE" &&
@@ -53,6 +76,11 @@ function validateCompleteVoucher(input) {
 }
 
 function handleVoucherError(error) {
+
+    if (error.code === "P2034") {
+        throw new Error("VOUCHER_CONCURRENT_UPDATE");
+    }
+
     if (error.code === "P2002") {
         const target = Array.isArray(error.meta?.target)
             ? error.meta.target.join("_")
@@ -241,81 +269,88 @@ async function createVoucher(input) {
 // UPDATE
 // ==========================================
 
+
 async function updateVoucher(id, input) {
     assertUuid(id);
 
     try {
-        return await prisma.$transaction(async (tx) => {
-            const existing = await tx.voucher.findUnique({
-                where: { id },
-                include: {
-                    _count: {
-                        select: {
-                            usages: true,
+        return await prisma.$transaction(
+            async (tx) => {
+                const existing = await tx.voucher.findUnique({
+                    where: { id },
+                    include: {
+                        _count: {
+                            select: {
+                                usages: true,
+                            },
                         },
                     },
-                },
-            });
+                });
 
-            if (!existing) {
-                throw new Error("VOUCHER_NOT_FOUND");
-            }
+                if (!existing) {
+                    throw new Error("VOUCHER_NOT_FOUND");
+                }
 
-            const usageCount = existing._count.usages;
+                const usageCount = existing._count.usages;
 
-            // Không thay đổi điều kiện thương mại sau khi đã sử dụng.
-            if (usageCount > 0) {
-                const changedFields = COMMERCIAL_FIELDS.filter(
-                    (field) =>
-                        input[field] !== undefined &&
-                        (
-                            field === "code"
-                                ? normalizeVoucherCode(input[field]) !== existing.code
-                                : String(input[field]) !== String(existing[field])
-                        )
-                );
+                // Không thay đổi điều kiện thương mại sau khi đã sử dụng.
+                if (usageCount > 0) {
+                    const changedFields = COMMERCIAL_FIELDS.filter(
+                        (field) =>
+                            input[field] !== undefined &&
+                            !areVoucherValuesEqual(
+                                field,
+                                input[field],
+                                existing[field]
+                            )
+                    );
 
-                if (changedFields.length > 0) {
+                    if (changedFields.length > 0) {
+                        throw new Error(
+                            "VOUCHER_TERMS_LOCKED_AFTER_USAGE"
+                        );
+                    }
+                }
+
+                // Không giảm tổng lượt sử dụng thấp hơn số lượt đã dùng.
+                if (
+                    input.usageLimit !== undefined &&
+                    input.usageLimit !== null &&
+                    input.usageLimit < usageCount
+                ) {
                     throw new Error(
-                        "VOUCHER_TERMS_LOCKED_AFTER_USAGE"
+                        "VOUCHER_USAGE_LIMIT_BELOW_USED"
                     );
                 }
+
+                const merged = {
+                    ...existing,
+                    ...input,
+                };
+
+                validateCompleteVoucher(merged);
+
+                const data = { ...input };
+
+                if (data.code !== undefined) {
+                    data.code = normalizeVoucherCode(data.code);
+                }
+
+                return await tx.voucher.update({
+                    where: { id },
+                    data,
+                    include: voucherCountInclude,
+                });
+            },
+            {
+                isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
             }
-
-            // Không giảm tổng lượt sử dụng thấp hơn số lượt đã dùng.
-            if (
-                input.usageLimit !== undefined &&
-                input.usageLimit !== null &&
-                input.usageLimit < usageCount
-            ) {
-                throw new Error(
-                    "VOUCHER_USAGE_LIMIT_BELOW_USED"
-                );
-            }
-
-            const merged = {
-                ...existing,
-                ...input,
-            };
-
-            validateCompleteVoucher(merged);
-
-            const data = { ...input };
-
-            if (data.code !== undefined) {
-                data.code = normalizeVoucherCode(data.code);
-            }
-
-            return await tx.voucher.update({
-                where: { id },
-                data,
-                include: voucherCountInclude,
-            });
-        });
+        );
     } catch (error) {
         handleVoucherError(error);
     }
 }
+
 
 // ==========================================
 // UPDATE STATUS

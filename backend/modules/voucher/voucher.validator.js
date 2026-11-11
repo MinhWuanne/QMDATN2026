@@ -15,13 +15,29 @@ const voucherCodeSchema = z.string()
         "Mã Voucher chỉ được chứa chữ in hoa, số, dấu gạch ngang và gạch dưới"
     );
 
+const MAX_DECIMAL_14_2 = 999999999999.99;
+
+function hasValidDecimalScale(value) {
+    return Math.round(value * 100) / 100 === value;
+}
+
 const positiveDecimalSchema = z.number()
     .finite()
-    .positive();
+    .positive()
+    .max(MAX_DECIMAL_14_2)
+    .refine(
+        hasValidDecimalScale,
+        "Giá trị chỉ được có tối đa 2 chữ số thập phân"
+    );
 
 const nonNegativeDecimalSchema = z.number()
     .finite()
-    .nonnegative();
+    .nonnegative()
+    .max(MAX_DECIMAL_14_2)
+    .refine(
+        hasValidDecimalScale,
+        "Giá trị chỉ được có tối đa 2 chữ số thập phân"
+    );
 
 const dateSchema = z.coerce.date();
 

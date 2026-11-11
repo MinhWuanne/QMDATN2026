@@ -4,6 +4,7 @@ import CatalogManagementPage from "./catalog/CatalogManagementPage.jsx";
 import ProductManagementPage from "./catalog/ProductManagementPage.jsx";
 import InventoryManagementPage from "./inventory/InventoryManagementPage.jsx";
 import OrderManagementPage from "./orders/OrderManagementPage.jsx";
+import VoucherManagementPage from "./vouchers/VoucherManagementPage.jsx";
 
 const navigation = [
   {
@@ -25,7 +26,7 @@ const navigation = [
     label: "GIAO DỊCH",
     items: [
       { title: "Đơn hàng", path: "/admin/orders", icon: "▧" },
-      { title: "Voucher", path: "/admin/vouchers", icon: "％", disabled: true },
+      { title: "Voucher", path: "/admin/vouchers", icon: "％" },
     ],
   },
 ];
@@ -235,6 +236,12 @@ export default function AdminDashboard({
             />
           ) : currentPath === "/admin/orders" ? (
             <OrderManagementPage
+              accessToken={accessToken}
+              onSessionUpdate={onSessionUpdate}
+              onSessionExpired={onLogout}
+            />
+          ) : currentPath === "/admin/vouchers" ? (
+            <VoucherManagementPage
               accessToken={accessToken}
               onSessionUpdate={onSessionUpdate}
               onSessionExpired={onLogout}
