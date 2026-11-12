@@ -5,6 +5,7 @@ import ProductManagementPage from "./catalog/ProductManagementPage.jsx";
 import InventoryManagementPage from "./inventory/InventoryManagementPage.jsx";
 import OrderManagementPage from "./orders/OrderManagementPage.jsx";
 import VoucherManagementPage from "./vouchers/VoucherManagementPage.jsx";
+import MemberManagementPage from "./members/MemberManagementPage.jsx";
 
 const navigation = [
   {
@@ -27,6 +28,12 @@ const navigation = [
     items: [
       { title: "Đơn hàng", path: "/admin/orders", icon: "▧" },
       { title: "Voucher", path: "/admin/vouchers", icon: "％" },
+    ],
+  },
+  {
+    label: "KHÁCH HÀNG",
+    items: [
+      { title: "Thành viên", path: "/admin/members", icon: "♙" },
     ],
   },
 ];
@@ -108,9 +115,8 @@ export default function AdminDashboard({
               {group.items.map((item) => (
                 <button
                   key={item.path}
-                  className={`admin-nav-item ${
-                    currentPath === item.path ? "active" : ""
-                  }`}
+                  className={`admin-nav-item ${currentPath === item.path ? "active" : ""
+                    }`}
                   disabled={item.disabled}
                   onClick={() => navigate(item.path)}
                   title={item.disabled ? "Chưa triển khai" : item.title}
@@ -242,6 +248,12 @@ export default function AdminDashboard({
             />
           ) : currentPath === "/admin/vouchers" ? (
             <VoucherManagementPage
+              accessToken={accessToken}
+              onSessionUpdate={onSessionUpdate}
+              onSessionExpired={onLogout}
+            />
+          ) : currentPath === "/admin/members" ? (
+            <MemberManagementPage
               accessToken={accessToken}
               onSessionUpdate={onSessionUpdate}
               onSessionExpired={onLogout}

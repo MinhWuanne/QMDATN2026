@@ -103,9 +103,14 @@ async function listMembers(query = {}) {
             where,
             skip,
             take: limit,
-            orderBy: {
-                [sortBy]: sortOrder,
-            },
+            orderBy: [
+                {
+                    [sortBy]: sortOrder,
+                },
+                {
+                    id: "asc",
+                },
+            ],
             select: {
                 id: true,
                 email: true,
@@ -282,9 +287,14 @@ async function getMemberById(id) {
             // Latest 10 orders, including unsuccessful orders.
             orders: {
                 take: 10,
-                orderBy: {
-                    createdAt: "desc",
-                },
+                orderBy: [
+                    {
+                        createdAt: "desc",
+                    },
+                    {
+                        id: "asc",
+                    },
+                ],
                 select: {
                     id: true,
                     orderNumber: true,
