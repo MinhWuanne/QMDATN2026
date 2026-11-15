@@ -106,6 +106,7 @@ const ERROR_STATUS_MAP = {
     RETURN_CONCURRENT_UPDATE: 409,
     PAYMENT_NOT_REFUNDABLE: 409,
     INVENTORY_NOT_FOUND: 404,
+    RETURN_INVENTORY_QUANTITY_INVALID: 409,
 
     // ==========================================
     // CHAT
