@@ -42,7 +42,10 @@
 // MIGRATIONS
 // - Return/Profile workflow migration:
 //   20261114090000_complete_return_profile_workflow
-// - Migration has already been deployed to Aiven defaultdb.
+// - Active ReturnRequest lock migration:
+//   20261115160000_enforce_one_active_return_per_order
+// - The first migration was deployed to Aiven; deploy the second
+//   migration before enabling the Return API.
 // - Prisma schema does not express every SQL-only constraint,
 //   including partial unique indexes and some CHECK constraints.
 // - Do not use db push, migrate reset or destructive migrations
