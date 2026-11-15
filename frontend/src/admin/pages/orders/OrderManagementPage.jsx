@@ -58,6 +58,10 @@ const PAYMENT_STATUSES = {
     label: "Hoàn tiền một phần",
     className: "is-refunded",
   },
+  NOT_REQUIRED: {
+    label: "Không cần thanh toán",
+    className: "is-paid",
+  },
 };
 
 const STATUS_TRANSITIONS = {
@@ -79,6 +83,7 @@ const STATUS_ACTION_LABELS = {
 const PAYMENT_METHODS = {
   COD: "Thanh toán khi nhận hàng",
   VNPAY: "VNPay",
+  INTERNAL_EXCHANGE: "Đơn đổi hàng",
 };
 
 const DEFAULT_PAGINATION = {
@@ -172,6 +177,10 @@ function canUpdateOrderStatus(order) {
     }
 
     return paymentStatus === "PENDING";
+  }
+
+  if (order?.paymentMethod === "INTERNAL_EXCHANGE") {
+    return paymentStatus === "NOT_REQUIRED";
   }
 
   return false;
