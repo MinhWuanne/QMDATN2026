@@ -16,6 +16,8 @@
 // - ReturnItem.orderItemId is unique: one OrderItem can participate
 //   in only one Return/Exchange request.
 // - ReturnRequest.replacementOrderId is unique.
+// - Only one non-terminal ReturnRequest per Order is allowed; the
+//   partial unique index is SQL-only in the Return workflow migration.
 // - Return/Profile ownership and authorization must be validated
 //   in backend services, not trusted from client input.
 //
