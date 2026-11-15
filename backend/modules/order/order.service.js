@@ -1487,8 +1487,11 @@ async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
                     ) {
                         throwError("COD_PAYMENT_STATE_INVALID", 409);
                     }
+                } else if (order.paymentMethod === "INTERNAL_EXCHANGE") {
+                    if (order.payment.status !== "NOT_REQUIRED") {
+                        throwError("INTERNAL_EXCHANGE_PAYMENT_STATE_INVALID", 409);
+                    }
                 } else {
-                    // INTERNAL_EXCHANGE is not supported by this workflow yet.
                     throwError("UNSUPPORTED_PAYMENT_METHOD", 409);
                 }
 
