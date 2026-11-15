@@ -1016,4 +1016,5 @@ module.exports = {
     receiveReturnedItem,
     retryExchangeWhenStockAvailable,
     confirmManualRefund,
+    calculateRefundAmount,
 };
