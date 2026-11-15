@@ -693,6 +693,11 @@ async function receiveReturnedItem(returnRequestId, adminId, conditionNote = nul
             }
 
             const newOnHand = inventory.quantityOnHand + returnItem.quantity;
+
+            if (!Number.isSafeInteger(newOnHand)) {
+                throwError("RETURN_INVENTORY_QUANTITY_INVALID", 409);
+            }
+
             const inventoryUpdate = await tx.inventory.updateMany({
                 where: {
                     id: inventory.id,
