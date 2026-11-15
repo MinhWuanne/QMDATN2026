@@ -93,7 +93,23 @@ function handleReturnError(error) {
     }
 
     if (error.code === "P2002") {
-        throwError("RETURN_ITEM_ALREADY_REQUESTED", 409);
+        const target = Array.isArray(error.meta?.target)
+            ? error.meta.target.join(" ")
+            : String(error.meta?.target || "");
+
+        if (target.includes("order_item_id")) {
+            throwError("RETURN_ITEM_ALREADY_REQUESTED", 409);
+        }
+
+        if (target.includes("one_active_per_order")) {
+            throwError("RETURN_ORDER_HAS_ACTIVE_REQUEST", 409);
+        }
+
+        if (target.includes("idempotency_key")) {
+            throwError("RETURN_REFUND_ALREADY_RECORDED", 409);
+        }
+
+        throwError("RETURN_CONCURRENT_UPDATE", 409);
     }
 
     throw error;
