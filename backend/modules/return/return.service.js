@@ -167,11 +167,15 @@ async function createReplacementOrder(tx, request, returnItem, adminId) {
     const reservation = await tx.inventory.updateMany({
         where: {
             id: inventory.id,
-            quantityOnHand: inventory.quantityOnHand,
-            reservedQuantity: inventory.reservedQuantity,
-            quantityOnHand: {
-                gte: inventory.reservedQuantity + returnItem.exchangeQuantity,
-            },
+            AND: [
+                { quantityOnHand: inventory.quantityOnHand },
+                { reservedQuantity: inventory.reservedQuantity },
+                {
+                    quantityOnHand: {
+                        gte: inventory.reservedQuantity + returnItem.exchangeQuantity,
+                    },
+                },
+            ],
         },
         data: {
             reservedQuantity: {
@@ -294,7 +298,7 @@ async function createReturnRequest(userId, input) {
                     throwError("ORDER_NOT_FOUND", 404);
                 }
 
-                if (!order.payment || order.payment.status !== "PAID") {
+                if (!order.payment || !["PAID", "PARTIALLY_REFUNDED"].includes(order.payment.status)) {
                     throwError("RETURN_ORDER_NOT_PAID", 409);
                 }
 
@@ -883,6 +887,18 @@ async function confirmManualRefund(returnRequestId, adminId, input) {
 
             if (existing) {
                 throwError("RETURN_REFUND_ALREADY_RECORDED", 409);
+            }
+
+            const reusedReference = await tx.paymentTransaction.findFirst({
+                where: {
+                    providerTxnId: input.refundReference,
+                    type: "REFUND",
+                },
+                select: { id: true },
+            });
+
+            if (reusedReference) {
+                throwError("RETURN_REFUND_REFERENCE_ALREADY_USED", 409);
             }
 
             const amount = new Prisma.Decimal(request.refundAmount || 0);
