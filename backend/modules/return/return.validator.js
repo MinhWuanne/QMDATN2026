@@ -68,7 +68,7 @@ const receiveReturnSchema = z.object({
 }).strict();
 
 const manualRefundSchema = z.object({
-    refundReference: z.string().trim().min(1).max(160),
+    refundReference: z.string().trim().min(1).max(120),
     adminNote: z.string().trim().max(2000).nullable().optional(),
 }).strict();
 
