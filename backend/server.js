@@ -12,6 +12,7 @@ const authRoutes = require("./routes/auth.routes");
 const adminAuthRoutes = require("./routes/admin-auth.routes");
 
 const orderRoutes = require("./modules/order/order.routes");
+const returnRoutes = require("./modules/return/return.routes");
 const paymentRoutes = require("./modules/payment/payment.routes");
 const errorHandler = require("./middlewares/error.middleware");
 
@@ -110,6 +111,9 @@ app.use("/api/admin/catalog", adminCatalogRoutes);
 app.use("/api/orders", orderRoutes.customerOrderRouter);
 app.use("/api/admin/orders", orderRoutes.adminOrderRouter);
 app.use("/api/payments", paymentRoutes);
+
+app.use("/api/returns", returnRoutes.customerReturnRouter);
+app.use("/api/admin/returns", returnRoutes.adminReturnRouter);
 
 app.use("/api/admin/vouchers", adminVoucherRoutes);
 app.use("/api/admin/members", adminMemberRoutes);
