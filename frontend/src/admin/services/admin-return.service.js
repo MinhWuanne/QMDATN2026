@@ -7,13 +7,13 @@ async function request(path, options = {}, accessToken, onTokenRefreshed) {
     let response;
 
     try {
-      response = await fetch(\`${API}${path}\`, {
+      response = await fetch(`${API}${path}`, {
         credentials: "include",
         ...options,
         headers: {
           "Content-Type": "application/json",
           ...(options.headers || {}),
-          ...(token ? { Authorization: \`Bearer ${token}\` } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
     } catch {
@@ -84,43 +84,43 @@ function queryString(params = {}) {
 export const adminReturnService = {
   list(params, token, onTokenRefreshed) {
     const query = queryString(params);
-    return request(query ? \`?${query}\` : "", { method: "GET" }, token, onTokenRefreshed);
+    return request(query ? `?${query}` : "", { method: "GET" }, token, onTokenRefreshed);
   },
 
   getById(id, token, onTokenRefreshed) {
-    return request(\`/${encodeURIComponent(id)}\`, { method: "GET" }, token, onTokenRefreshed);
+    return request(`/${encodeURIComponent(id)}`, { method: "GET" }, token, onTokenRefreshed);
   },
 
   approve(id, payload, token, onTokenRefreshed) {
-    return request(\`/${encodeURIComponent(id)}/approve\`, {
+    return request(`/${encodeURIComponent(id)}/approve`, {
       method: "POST",
       body: JSON.stringify(payload || {}),
     }, token, onTokenRefreshed);
   },
 
   reject(id, payload, token, onTokenRefreshed) {
-    return request(\`/${encodeURIComponent(id)}/reject\`, {
+    return request(`/${encodeURIComponent(id)}/reject`, {
       method: "POST",
       body: JSON.stringify(payload),
     }, token, onTokenRefreshed);
   },
 
   receive(id, payload, token, onTokenRefreshed) {
-    return request(\`/${encodeURIComponent(id)}/receive\`, {
+    return request(`/${encodeURIComponent(id)}/receive`, {
       method: "POST",
       body: JSON.stringify(payload || {}),
     }, token, onTokenRefreshed);
   },
 
   retryExchange(id, payload, token, onTokenRefreshed) {
-    return request(\`/${encodeURIComponent(id)}/retry-exchange\`, {
+    return request(`/${encodeURIComponent(id)}/retry-exchange`, {
       method: "POST",
       body: JSON.stringify(payload || {}),
     }, token, onTokenRefreshed);
   },
 
   confirmRefund(id, payload, token, onTokenRefreshed) {
-    return request(\`/${encodeURIComponent(id)}/confirm-refund\`, {
+    return request(`/${encodeURIComponent(id)}/confirm-refund`, {
       method: "POST",
       body: JSON.stringify(payload),
     }, token, onTokenRefreshed);
