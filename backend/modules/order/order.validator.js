@@ -140,6 +140,7 @@ const adminOrderListQuerySchema = z.object({
     paymentMethod: z.enum([
         "COD",
         "VNPAY",
+        "INTERNAL_EXCHANGE",
     ]).optional(),
 
     paymentStatus: z.enum([
@@ -149,6 +150,7 @@ const adminOrderListQuerySchema = z.object({
         "CANCELLED",
         "REFUNDED",
         "PARTIALLY_REFUNDED",
+        "NOT_REQUIRED",
     ]).optional(),
 
     search: z.string()
