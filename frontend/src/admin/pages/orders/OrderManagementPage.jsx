@@ -650,6 +650,7 @@ export default function OrderManagementPage({
             <option value="all">Tất cả phương thức</option>
             <option value="COD">COD</option>
             <option value="VNPAY">VNPay</option>
+            <option value="INTERNAL_EXCHANGE">Đổi hàng</option>
           </select>
 
           <select
