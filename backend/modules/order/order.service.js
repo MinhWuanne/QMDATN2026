@@ -1,7 +1,79 @@
 
+/*
+ * ============================================================
+ * QMDATN2026 - ORDER SERVICE
+ * ============================================================
+ *
+ * PURPOSE
+ * - Customer order creation, listing, detail and cancellation.
+ * - VNPAY checkout session and pending-payment expiration.
+ * - Admin order management, payment confirmation and status flow.
+ * - Inventory reservation, deduction, release and restoration.
+ *
+ * BUSINESS RULES - DO NOT CHANGE WITHOUT REVIEW
+ * - New orders support COD and VNPAY only.
+ * - Stock is reserved when an order is created.
+ * - Reserved stock is deducted when Admin confirms the order.
+ * - COD payment is recorded only after DELIVERED.
+ * - VNPAY orders must be PAID before status progression.
+ * - COD orders must be PAID before COMPLETED.
+ * - Paid orders cannot use normal cancellation; refund is required.
+ * - Expired VNPAY checkout cancels the order, releases stock,
+ *   restores eligible cart items and releases voucher usage.
+ *
+ * ORDER STATUS FLOW
+ * PENDING_CONFIRMATION -> CONFIRMED -> PROCESSING
+ * -> SHIPPING -> DELIVERED -> COMPLETED
+ * CANCELLED is terminal.
+ *
+ * RETURN / EXCHANGE INTEGRATION
+ * - Eligible orders require PAID payment and delivery within
+ *   the agreed 3-day request window.
+ * - Refund amount is based on OrderItem.discountAmount.
+ * - Replacement orders use INTERNAL_EXCHANGE / NOT_REQUIRED.
+ * - Do not implement Return/Exchange by reusing normal cancellation.
+ * 
+ * RETURN / EXCHANGE STATUS
+ * - Prisma schema and database migration are prepared.
+ * - Return module files are currently empty placeholders.
+ * - Return/Exchange business logic is NOT implemented yet.
+ * - Do not assume replacement orders can currently be created.
+ *
+ * IMPORTANT IMPLEMENTATION NOTES
+ * - createOrder() must persist discountAmount for every OrderItem.
+ * - Voucher allocation must use exact-cent arithmetic and ensure
+ *   sum(OrderItem.discountAmount) === Order.discountAmount.
+ * - Inventory and order/payment changes must remain transactional.
+ * - Use compare-and-set (updateMany + count check) for concurrent
+ *   state changes where currently implemented.
+ * - Inventory movements must preserve correct signed quantities,
+ *   movement types and referenceId.
+ *
+ * KNOWN ITEMS TO REVIEW
+ * - expirePendingVnpayOrders() duplicate voucher usage cleanup
+ *   has been removed; keep one deleteMany() call per transaction.
+ * - Review this file's Return/Exchange integration before changing
+ *   order lifecycle, inventory or payment behavior.
+ *
+ * DATABASE
+ * - Prisma schema: backend/prisma/schema.prisma
+ * - Return/Profile migration:
+ *   20261114090000_complete_return_profile_workflow
+ * - Current target database: Aiven PostgreSQL / defaultdb.
+ *
+ * MAINTENANCE RULE
+ * Update this note whenever important business rules, lifecycle
+ * behavior or service responsibilities change.
+ * ============================================================
+ */
+
+
 const crypto = require("crypto");
 const { Prisma } = require("@prisma/client");
 const prisma = require("../../core/database/prisma");
+const {
+    allocateVoucherDiscount,
+} = require("./order-discount-allocation");
 
 // ==========================================
 // CONSTANTS
@@ -139,6 +211,8 @@ function calculateVoucherDiscount(voucher, subtotal) {
         Prisma.Decimal.ROUND_HALF_UP
     );
 }
+
+
 
 // ==========================================
 // VOUCHER VALIDATION
@@ -465,7 +539,7 @@ async function deductReservedInventory(tx, order, adminId) {
             data: {
                 variantId: item.variantId,
                 type: "SALE",
-                quantity: item.quantity,
+                quantity: -item.quantity,
                 beforeStock: inventory.quantityOnHand,
                 afterStock: inventory.quantityOnHand - item.quantity,
                 referenceId: order.id,
@@ -588,6 +662,12 @@ async function createOrder(userId, input) {
                     ? voucherResult.discountAmount
                     : new Prisma.Decimal(0);
 
+                const allocatedItems = allocateVoucherDiscount(
+                    items,
+                    discountAmount,
+                    subtotal
+                );
+
                 const totalAmount = subtotal
                     .sub(discountAmount)
                     .add(SHIPPING_FEE);
@@ -619,7 +699,8 @@ async function createOrder(userId, input) {
                         customerNote: customerNote || null,
 
                         items: {
-                            create: items.map((item) => ({
+                            create: allocatedItems.map((item) => ({
+                                id: crypto.randomUUID(),
                                 productId: item.productId,
                                 variantId: item.variantId,
                                 productName: item.productName,
@@ -629,6 +710,7 @@ async function createOrder(userId, input) {
                                 unitPrice: item.unitPrice,
                                 quantity: item.quantity,
                                 lineTotal: item.lineTotal,
+                                discountAmount: item.discountAmount,
                             })),
                         },
                     },
@@ -909,13 +991,13 @@ async function expirePendingVnpayOrders() {
                     // Step 4: Restore eligible items to the cart.
                     await restoreOrderItemsToCart(tx, payment.order);
 
-                    // Step 5: Record order history.
+                    // Step 5: Create order status history.
                     await createOrderHistory(tx, {
                         orderId: payment.order.id,
                         changedById: null,
-                        oldStatus: "PENDING_CONFIRMATION",
+                        oldStatus: payment.order.status,
                         newStatus: "CANCELLED",
-                        note: "VNPAY checkout expired after 10 minutes",
+                        note: "VNPAY payment expired",
                     });
 
                     // Step 6: Release voucher usage.
@@ -923,7 +1005,7 @@ async function expirePendingVnpayOrders() {
                         where: {
                             orderId: payment.order.id,
                         },
-                    });
+                    }); 
 
                     return true;
                 },
@@ -1351,6 +1433,7 @@ async function markOrderPaid(orderId, adminId, note = null) {
 // ADMIN: UPDATE ORDER STATUS
 // ==========================================
 
+
 async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
     assertUuid(orderId, "orderId");
     assertUuid(adminId, "adminId");
@@ -1378,24 +1461,34 @@ async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
                     throwError("PAYMENT_NOT_FOUND", 404);
                 }
 
-                if (
-                    order.paymentMethod === "VNPAY" &&
-                    order.payment.status !== "PAID"
-                ) {
-                    throwError("ORDER_PAYMENT_NOT_PAID", 409);
+                // Payment method must match the order.
+                if (order.payment.method !== order.paymentMethod) {
+                    throwError("PAYMENT_METHOD_MISMATCH", 409);
                 }
 
-                if (
-                    order.paymentMethod === "COD" &&
-                    newStatus === "COMPLETED" &&
-                    order.payment.status !== "PAID"
-                ) {
-                    throwError("COD_PAYMENT_NOT_COLLECTED", 409);
-                }
+                // VNPAY orders must be paid before any status progression.
+                if (order.paymentMethod === "VNPAY") {
+                    if (order.payment.status !== "PAID") {
+                        throwError("ORDER_PAYMENT_NOT_PAID", 409);
+                    }
+                } else if (order.paymentMethod === "COD") {
+                    // COD can only be completed after Admin confirms collection.
+                    if (
+                        newStatus === "COMPLETED" &&
+                        order.payment.status !== "PAID"
+                    ) {
+                        throwError("COD_PAYMENT_NOT_COLLECTED", 409);
+                    }
 
-                if (
-                    !["COD", "VNPAY"].includes(order.paymentMethod)
-                ) {
+                    // Before completion, COD payment must remain pending.
+                    if (
+                        newStatus !== "COMPLETED" &&
+                        order.payment.status !== "PENDING"
+                    ) {
+                        throwError("COD_PAYMENT_STATE_INVALID", 409);
+                    }
+                } else {
+                    // INTERNAL_EXCHANGE is not supported by this workflow yet.
                     throwError("UNSUPPORTED_PAYMENT_METHOD", 409);
                 }
 
@@ -1406,6 +1499,8 @@ async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
                     throwError("INVALID_ORDER_STATUS_TRANSITION", 409);
                 }
 
+                const now = new Date();
+
                 const updateResult = await tx.order.updateMany({
                     where: {
                         id: order.id,
@@ -1413,8 +1508,13 @@ async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
                     },
                     data: {
                         status: newStatus,
+
+                        ...(newStatus === "DELIVERED"
+                            ? { deliveredAt: now }
+                            : {}),
+
                         ...(newStatus === "COMPLETED"
-                            ? { completedAt: new Date() }
+                            ? { completedAt: now }
                             : {}),
                     },
                 });
@@ -1423,15 +1523,13 @@ async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
                     throwError("ORDER_CONCURRENT_UPDATE", 409);
                 }
 
-                // Deduct stock only when moving from
-                // PENDING_CONFIRMATION to CONFIRMED.
+                // Deduct reserved stock only when confirming the order.
                 if (
                     order.status === "PENDING_CONFIRMATION" &&
                     newStatus === "CONFIRMED"
                 ) {
                     await deductReservedInventory(tx, order, adminId);
                 }
-
 
                 await createOrderHistory(tx, {
                     orderId: order.id,
@@ -1454,6 +1552,7 @@ async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
         handleOrderError(error);
     }
 }
+
 
 // ==========================================
 // ADMIN: CANCEL ORDER
@@ -1534,12 +1633,26 @@ async function cancelAdminOrder(orderId, adminId, note = null) {
                     where: { orderId: order.id },
                 });
 
-                // Step 5: Cancel pending payment.
-                if (order.payment?.status === "PENDING") {
-                    await tx.payment.update({
-                        where: { id: order.payment.id },
-                        data: { status: "CANCELLED" },
-                    });
+                // Step 5: Cancel unpaid payment.
+                if (
+                    !order.payment ||
+                    !["PENDING", "FAILED"].includes(order.payment.status)
+                ) {
+                    throwError("PAYMENT_CANNOT_BE_CANCELLED", 409);
+                }
+
+                const paymentUpdateResult = await tx.payment.updateMany({
+                    where: {
+                        id: order.payment.id,
+                        status: order.payment.status,
+                    },
+                    data: {
+                        status: "CANCELLED",
+                    },
+                });
+
+                if (paymentUpdateResult.count !== 1) {
+                    throwError("PAYMENT_CONCURRENT_UPDATE", 409);
                 }
 
                 return tx.order.findUnique({

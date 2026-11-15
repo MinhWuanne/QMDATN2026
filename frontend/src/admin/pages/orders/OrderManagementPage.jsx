@@ -151,17 +151,42 @@ function getOrderItemSummary(order) {
 function canMarkPaid(order) {
   return (
     order?.paymentMethod === "COD" &&
-    order?.payment?.status === "PENDING" &&
-    order?.status !== "CANCELLED"
+    order?.status === "DELIVERED" &&
+    order?.payment?.status === "PENDING"
   );
 }
 
+function canUpdateOrderStatus(order) {
+  const nextStatus = getNextStatus(order);
+  const paymentStatus = order?.payment?.status;
+
+  if (!nextStatus) return false;
+
+  if (order?.paymentMethod === "VNPAY") {
+    return paymentStatus === "PAID";
+  }
+
+  if (order?.paymentMethod === "COD") {
+    if (nextStatus === "COMPLETED") {
+      return paymentStatus === "PAID";
+    }
+
+    return paymentStatus === "PENDING";
+  }
+
+  return false;
+}
+
 function canCancelOrder(order) {
-  return [
-    "PENDING_CONFIRMATION",
-    "CONFIRMED",
-    "PROCESSING",
-  ].includes(order?.status);
+  return (
+    [
+      "PENDING_CONFIRMATION",
+      "CONFIRMED",
+      "PROCESSING",
+      "SHIPPING",
+    ].includes(order?.status) &&
+    ["PENDING", "FAILED"].includes(order?.payment?.status)
+  );
 }
 
 function getNextStatus(order) {
@@ -441,9 +466,12 @@ export default function OrderManagementPage({
 
     if (!nextStatus) return;
 
-    if (selectedOrder.payment?.status !== "PAID") {
+    if (!canUpdateOrderStatus(selectedOrder)) {
       setActionError(
-        "Đơn hàng phải được thanh toán trước khi cập nhật trạng thái."
+        selectedOrder.paymentMethod === "COD" &&
+          nextStatus === "COMPLETED"
+          ? "Cần xác nhận đã thu tiền COD trước khi hoàn tất đơn hàng."
+          : "Không thể cập nhật trạng thái đơn hàng với trạng thái thanh toán hiện tại."
       );
       return;
     }
@@ -1074,21 +1102,18 @@ export default function OrderManagementPage({
                       </button>
                     )}
 
-                    {getNextStatus(selectedOrder) &&
-                      selectedOrder.payment?.status === "PAID" && (
-                        <button
-                          type="button"
-                          className="order-action-primary"
-                          onClick={handleUpdateStatus}
-                          disabled={actionLoading}
-                        >
-                          {actionLoading
-                            ? "Đang xử lý..."
-                            : STATUS_ACTION_LABELS[
-                            getNextStatus(selectedOrder)
-                            ]}
-                        </button>
-                      )}
+                    {canUpdateOrderStatus(selectedOrder) && (
+                      <button
+                        type="button"
+                        className="order-action-primary"
+                        onClick={handleUpdateStatus}
+                        disabled={actionLoading}
+                      >
+                        {actionLoading
+                          ? "Đang xử lý..."
+                          : STATUS_ACTION_LABELS[getNextStatus(selectedOrder)]}
+                      </button>
+                    )}
 
                     {canCancelOrder(selectedOrder) && (
                       <button

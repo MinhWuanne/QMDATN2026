@@ -1,4 +1,7 @@
 ﻿const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const {
+    ACCESS_TOKEN_TTL_SECONDS,
+} = require("../../../core/security/jwt");
 
 function createRefreshCookieManager({
     cookieName,
@@ -81,7 +84,7 @@ function sendLoginResponse(res, result, setRefreshCookie) {
         user: result.user,
         tokens: {
             accessToken: publicTokens.accessToken,
-            expiresIn: 900,
+            expiresIn: ACCESS_TOKEN_TTL_SECONDS,
             tokenType: "Bearer",
         },
     });

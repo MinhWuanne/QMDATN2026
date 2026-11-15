@@ -81,6 +81,17 @@ const ERROR_STATUS_MAP = {
     MEMBER_STATUS_INVALID: 400,
     MEMBER_STATUS_UNCHANGED: 409,
     MEMBER_CONCURRENT_UPDATE: 409,
+
+    // ==========================================
+    // CHAT
+    // ==========================================
+
+    CHAT_CONVERSATION_NOT_FOUND: 404,
+    CHAT_MESSAGE_CURSOR_INVALID: 400,
+
+    CHAT_CONVERSATION_CLOSED: 409,
+    CHAT_CONVERSATION_ALREADY_CLOSED: 409,
+    CHAT_CONCURRENT_UPDATE: 409,
 };
 
 function errorHandler(err, req, res, next) {

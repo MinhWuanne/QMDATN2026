@@ -59,6 +59,7 @@ async function createRegistrationOtp(userId) {
         id: true,
         email: true,
         fullName: true,
+        role: true,
         status: true,
         emailVerifiedAt: true,
       },
@@ -69,6 +70,7 @@ async function createRegistrationOtp(userId) {
     }
 
     if (
+      user.role !== "CUSTOMER" ||
       user.status !== "PENDING_VERIFICATION" ||
       user.emailVerifiedAt
     ) {
@@ -162,6 +164,7 @@ async function verifyRegistrationOtp(userId, code) {
       where: { id: userId },
       select: {
         id: true,
+        role: true,
         status: true,
         emailVerifiedAt: true,
       },
@@ -169,6 +172,7 @@ async function verifyRegistrationOtp(userId, code) {
 
     if (
       !user ||
+      user.role !== "CUSTOMER" ||
       user.status !== "PENDING_VERIFICATION" ||
       user.emailVerifiedAt
     ) {

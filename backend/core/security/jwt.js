@@ -4,7 +4,7 @@ const crypto = require("node:crypto");
 
 const { getSecret } = require("../config/env");
 
-const ACCESS_TOKEN_TTL = "15m";
+const ACCESS_TOKEN_TTL_SECONDS = 900;
 const JWT_ALGORITHM = "HS256";
 const JWT_ISSUER = "qmdatn2026-api";
 const JWT_AUDIENCE = "qmdatn2026-web";
@@ -31,7 +31,7 @@ function signAccessToken({ userId, role }) {
       algorithm: JWT_ALGORITHM,
       subject: userId,
       jwtid: crypto.randomUUID(),
-      expiresIn: ACCESS_TOKEN_TTL,
+      expiresIn: ACCESS_TOKEN_TTL_SECONDS,
       issuer: JWT_ISSUER,
       audience: JWT_AUDIENCE,
     }
@@ -72,5 +72,5 @@ function verifyAccessToken(token) {
 module.exports = {
   signAccessToken,
   verifyAccessToken,
-  ACCESS_TOKEN_TTL,
+  ACCESS_TOKEN_TTL_SECONDS,
 };

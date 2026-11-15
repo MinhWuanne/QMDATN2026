@@ -15,7 +15,10 @@ const {
     revokeRefreshToken,
 } = require("../shared/refresh-token.service");
 
-const { signAccessToken } = require("../../../core/security/jwt");
+const {
+    signAccessToken,
+    ACCESS_TOKEN_TTL_SECONDS,
+} = require("../../../core/security/jwt");
 
 const {
     requestPasswordReset,
@@ -28,6 +31,8 @@ const {
     sendLoginResponse,
 } = require("../shared/auth-cookie");
 
+const { createSafeUser } = require("../shared/auth-user");
+
 const refreshCookie = createRefreshCookieManager({
     cookieName: "refresh_token",
     cookiePath: "/api/auth",
@@ -39,25 +44,17 @@ async function register(req, res) {
 }
 
 async function verifyEmail(req, res) {
-    const email = req.body.email?.trim().toLowerCase();
-    const code = req.body.code?.trim();
-
-    if (!email || !/^\d{6}$/.test(code || "")) {
-        return res.status(400).json({
-            success: false,
-            message: "INVALID_VERIFICATION_INPUT",
-        });
-    }
+    const { email, code } = req.body;
 
     const user = await prisma.user.findUnique({
         where: { email },
         select: {
             id: true,
-            status: true,
+            role: true,
         },
     });
 
-    if (!user) {
+    if (!user || user.role !== "CUSTOMER") {
         return res.status(400).json({
             success: false,
             message: "OTP_INVALID_OR_UNAVAILABLE",
@@ -155,7 +152,9 @@ async function refresh(req, res) {
                 id: true,
                 fullName: true,
                 email: true,
+                phone: true,
                 role: true,
+                status: true,
             },
         });
 
@@ -176,10 +175,10 @@ async function refresh(req, res) {
 
         return res.status(200).json({
             success: true,
-            user,
+            user: createSafeUser(user),
             tokens: {
                 accessToken,
-                expiresIn: 900,
+                expiresIn: ACCESS_TOKEN_TTL_SECONDS,
                 tokenType: "Bearer",
             },
         });

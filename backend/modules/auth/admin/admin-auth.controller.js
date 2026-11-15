@@ -5,7 +5,10 @@ const {
     revokeRefreshToken,
 } = require("../shared/refresh-token.service");
 
-const { signAccessToken } = require("../../../core/security/jwt");
+const {
+    signAccessToken,
+    ACCESS_TOKEN_TTL_SECONDS,
+} = require("../../../core/security/jwt");
 
 const {
     createRefreshCookieManager,
@@ -67,7 +70,7 @@ async function refreshAdmin(req, res) {
             user: createSafeUser(rotatedSession.user, false),
             tokens: {
                 accessToken,
-                expiresIn: 900,
+                expiresIn: ACCESS_TOKEN_TTL_SECONDS,
                 tokenType: "Bearer",
             },
         });

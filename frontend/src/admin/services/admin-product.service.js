@@ -1,21 +1,7 @@
 
-import { adminAuthRequest } from "./admin-auth.service.js";
+import { refreshAdminSession } from "./admin-auth.service.js";
 
 const API = "/api/admin/catalog";
-
-let refreshPromise = null;
-
-async function refreshSession() {
-  if (!refreshPromise) {
-    refreshPromise = adminAuthRequest("/refresh", {
-      method: "POST",
-    }).finally(() => {
-      refreshPromise = null;
-    });
-  }
-
-  return refreshPromise;
-}
 
 function getErrorMessage(data) {
   const messages = {
@@ -96,7 +82,7 @@ async function executeRequest(
     let refreshed;
 
     try {
-      refreshed = await refreshSession();
+      refreshed = await refreshAdminSession();
     } catch {
       throw new Error(
         "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."

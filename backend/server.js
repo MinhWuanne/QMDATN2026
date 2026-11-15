@@ -23,6 +23,9 @@ const adminCatalogRoutes = require("./routes/admin/catalog.routes");
 const adminVoucherRoutes = require("./routes/admin/voucher.routes");
 const adminMemberRoutes = require("./routes/admin/member.routes");
 
+const memberRoutes = require("./routes/member.routes");
+const adminChatRoutes = require("./routes/admin/chat.routes");
+
 // Render runs behind a reverse proxy.
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
@@ -110,6 +113,9 @@ app.use("/api/payments", paymentRoutes);
 
 app.use("/api/admin/vouchers", adminVoucherRoutes);
 app.use("/api/admin/members", adminMemberRoutes);
+
+app.use("/api/member", memberRoutes);
+app.use("/api/admin/chat", adminChatRoutes);
 
 // Error handler must be registered last.
 app.use(errorHandler);

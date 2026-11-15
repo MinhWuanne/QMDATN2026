@@ -6,7 +6,7 @@ const jwt = require("jsonwebtoken");
 const {
   signAccessToken,
   verifyAccessToken,
-  ACCESS_TOKEN_TTL,
+  ACCESS_TOKEN_TTL_SECONDS,
 } = require("../core/security/jwt");
 
 const TEST_SECRET =
@@ -49,7 +49,19 @@ test("Sign and verify Admin access token", () => {
 });
 
 test("Access token expires after 15 minutes", () => {
-  assert.equal(ACCESS_TOKEN_TTL, "15m");
+  assert.equal(ACCESS_TOKEN_TTL_SECONDS, 900);
+
+  process.env.JWT_ACCESS_SECRET = TEST_SECRET;
+
+  const token = signAccessToken({
+    userId: TEST_USER_ID,
+    role: "CUSTOMER",
+  });
+
+  const payload = jwt.decode(token);
+
+  assert.ok(payload);
+  assert.equal(payload.exp - payload.iat, 900);
 });
 
 test("Reject missing user ID", () => {

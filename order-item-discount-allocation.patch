@@ -1,0 +1,138 @@
+--- backend/modules/order/order.service.js
++++ backend/modules/order/order.service.js
+@@ -140,6 +140,104 @@
+     );
+ }
+ 
++// Convert a monetary Decimal to an exact integer number of cents.
++function moneyToCents(value) {
++    const cents = new Prisma.Decimal(value).mul(100).toDecimalPlaces(
++        0,
++        Prisma.Decimal.ROUND_HALF_UP
++    );
++
++    return BigInt(cents.toFixed(0));
++}
++
++// Allocate the order-level voucher discount to OrderItems using
++// the Largest Remainder Method. All arithmetic is performed in cents.
++function allocateVoucherDiscount(items, discountAmount, subtotal) {
++    const discountCents = moneyToCents(discountAmount);
++    const subtotalCents = moneyToCents(subtotal);
++
++    if (
++        discountCents < 0n ||
++        subtotalCents < 0n ||
++        discountCents > subtotalCents
++    ) {
++        throwError("INVALID_VOUCHER_DISCOUNT_ALLOCATION", 400);
++    }
++
++    const orderItems = items.map((item) => ({
++        ...item,
++        orderItemId: crypto.randomUUID(),
++    }));
++
++    if (subtotalCents === 0n) {
++        if (discountCents !== 0n) {
++            throwError("INVALID_VOUCHER_DISCOUNT_ALLOCATION", 400);
++        }
++
++        return orderItems.map((item) => ({
++            ...item,
++            discountAmount: new Prisma.Decimal(0),
++        }));
++    }
++
++    const itemTotalCents = orderItems.reduce(
++        (total, item) => total + moneyToCents(item.lineTotal),
++        0n
++    );
++
++    if (itemTotalCents !== subtotalCents) {
++        throwError("ORDER_SUBTOTAL_MISMATCH", 409);
++    }
++
++    const allocations = orderItems.map((item) => {
++        const lineCents = moneyToCents(item.lineTotal);
++
++        if (lineCents < 0n) {
++            throwError("INVALID_ORDER_ITEM_TOTAL", 400);
++        }
++
++        const numerator = discountCents * lineCents;
++
++        return {
++            ...item,
++            allocatedCents: numerator / subtotalCents,
++            remainder: numerator % subtotalCents,
++        };
++    });
++
++    const initiallyAllocated = allocations.reduce(
++        (total, item) => total + item.allocatedCents,
++        0n
++    );
++
++    let remainingCents = discountCents - initiallyAllocated;
++
++    // Stable tie-break: OrderItem UUID ascending.
++    const remainderRanking = [...allocations].sort((a, b) => {
++        if (a.remainder > b.remainder) return -1;
++        if (a.remainder < b.remainder) return 1;
++        return a.orderItemId.localeCompare(b.orderItemId);
++    });
++
++    for (let index = 0; remainingCents > 0n; index++) {
++        if (index >= remainderRanking.length) {
++            throwError("VOUCHER_DISCOUNT_ALLOCATION_FAILED", 500);
++        }
++
++        remainderRanking[index].allocatedCents += 1n;
++        remainingCents -= 1n;
++    }
++
++    return allocations.map((item) => ({
++        ...item,
++        discountAmount: new Prisma.Decimal(
++            item.allocatedCents.toString()
++        )
++            .div(100)
++            .toDecimalPlaces(2),
++    }));
++}
++
+ // ==========================================
+ // VOUCHER VALIDATION
+ // ==========================================
+@@ -588,6 +686,12 @@
+                     ? voucherResult.discountAmount
+                     : new Prisma.Decimal(0);
+ 
++                const allocatedItems = allocateVoucherDiscount(
++                    items,
++                    discountAmount,
++                    subtotal
++                );
++
+                 const totalAmount = subtotal
+                     .sub(discountAmount)
+                     .add(SHIPPING_FEE);
+@@ -619,7 +723,8 @@
+                         customerNote: customerNote || null,
+ 
+                         items: {
+-                            create: items.map((item) => ({
++                            create: allocatedItems.map((item) => ({
++                                id: item.orderItemId,
+                                 productId: item.productId,
+                                 variantId: item.variantId,
+                                 productName: item.productName,
+@@ -629,6 +734,7 @@
+                                 unitPrice: item.unitPrice,
+                                 quantity: item.quantity,
+                                 lineTotal: item.lineTotal,
++                                discountAmount: item.discountAmount,
+                             })),
+                         },
+                     },

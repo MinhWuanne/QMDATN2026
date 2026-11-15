@@ -6,6 +6,7 @@ import InventoryManagementPage from "./inventory/InventoryManagementPage.jsx";
 import OrderManagementPage from "./orders/OrderManagementPage.jsx";
 import VoucherManagementPage from "./vouchers/VoucherManagementPage.jsx";
 import MemberManagementPage from "./members/MemberManagementPage.jsx";
+import AdminChatPage from "./chat/AdminChatPage.jsx";
 
 const navigation = [
   {
@@ -34,6 +35,16 @@ const navigation = [
     label: "KHÁCH HÀNG",
     items: [
       { title: "Thành viên", path: "/admin/members", icon: "♙" },
+    ],
+  },
+  {
+    label: "HỖ TRỢ KHÁCH HÀNG",
+    items: [
+      {
+        title: "Chat hỗ trợ",
+        path: "/admin/chat",
+        icon: "✉",
+      },
     ],
   },
 ];
@@ -254,6 +265,12 @@ export default function AdminDashboard({
             />
           ) : currentPath === "/admin/members" ? (
             <MemberManagementPage
+              accessToken={accessToken}
+              onSessionUpdate={onSessionUpdate}
+              onSessionExpired={onLogout}
+            />
+          ) : currentPath === "/admin/chat" ? (
+            <AdminChatPage
               accessToken={accessToken}
               onSessionUpdate={onSessionUpdate}
               onSessionExpired={onLogout}

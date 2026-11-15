@@ -1,3 +1,59 @@
+
+// ============================================================
+// QMDATN2026 - DATABASE SCHEMA
+// ============================================================
+//
+// PURPOSE
+// - Main Prisma data model for the badminton / pickleball shop.
+// - Defines authentication, users, catalog, inventory, orders,
+//   payments, vouchers, returns/exchanges and profile requests.
+//
+// IMPORTANT DATABASE RULES
+// - Order and OrderItem contain purchase-time snapshots.
+// - OrderItem.discountAmount stores the allocated voucher discount
+//   for that specific item.
+// - Order.deliveredAt records the actual delivery transition time.
+// - ReturnItem.orderItemId is unique: one OrderItem can participate
+//   in only one Return/Exchange request.
+// - ReturnRequest.replacementOrderId is unique.
+// - Return/Profile ownership and authorization must be validated
+//   in backend services, not trusted from client input.
+//
+// RETURN / EXCHANGE DESIGN
+// - Request deadline: 3 days after delivery.
+// - Only PAID orders are eligible.
+// - Partial quantity is allowed, but an OrderItem cannot be reused
+//   in another request, even if some quantity remains.
+// - Refund excludes shipping fee and uses the item's allocated
+//   discountAmount.
+// - Refund is processed manually by Admin; the system records
+//   the refund reference and completion.
+// - Exchange is limited to the same product with another variant.
+// - Replacement orders use INTERNAL_EXCHANGE / NOT_REQUIRED.
+//
+// MEMBER PROFILE REQUEST
+// - Only fullName and phone can be requested for modification.
+// - Approval/rejection is performed by Admin.
+// - Only one REQUESTED profile request per user is allowed.
+// - The partial unique index is SQL-only and is defined in migration.
+//
+// MIGRATIONS
+// - Return/Profile workflow migration:
+//   20261114090000_complete_return_profile_workflow
+// - Migration has already been deployed to Aiven defaultdb.
+// - Prisma schema does not express every SQL-only constraint,
+//   including partial unique indexes and some CHECK constraints.
+// - Do not use db push, migrate reset or destructive migrations
+//   without explicit review and approval.
+//
+// MAINTENANCE RULE
+// - Update this note when data relationships, business constraints
+//   or migration strategy changes.
+// - Before adding a migration, inspect existing migrations and
+//   current database state.
+// ============================================================
+
+
 // ==========================================
 // PRISMA CLIENT
 // ==========================================
@@ -73,6 +129,7 @@ enum OrderStatus {
 enum PaymentMethod {
   COD
   VNPAY
+  INTERNAL_EXCHANGE
 
   @@map("payment_method")
 }
@@ -84,6 +141,7 @@ enum PaymentStatus {
   CANCELLED
   REFUNDED
   PARTIALLY_REFUNDED
+  NOT_REQUIRED
 
   @@map("payment_status")
 }
@@ -125,6 +183,8 @@ enum ReturnStatus {
   REJECTED
   RECEIVED
   INSPECTING
+  REFUND_PENDING
+  WAITING_FOR_STOCK
   COMPLETED
   CANCELLED
 
@@ -136,6 +196,31 @@ enum ReturnResolution {
   EXCHANGE
 
   @@map("return_resolution")
+}
+
+enum ChatConversationStatus {
+  OPEN
+  CLOSED
+
+  @@map("chat_conversation_status")
+}
+
+enum ReturnItemStatus {
+  PENDING
+  REJECTED
+  REFUND_PENDING
+  WAITING_FOR_STOCK
+  COMPLETED
+
+  @@map("return_item_status")
+}
+
+enum MemberProfileRequestStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+
+  @@map("member_profile_request_status")
 }
 
 // ==========================================
@@ -174,6 +259,17 @@ model User {
   returnRequests            ReturnRequest[]
   orderStatusChanges        OrderStatusHistory[] @relation("OrderStatusActor")
   inventoryMovementsCreated InventoryMovement[]
+
+  // Chat relations
+  supportConversation ChatConversation? @relation("ChatConversationCustomer")
+  sentChatMessages    ChatMessage[]     @relation("ChatMessageSender")
+
+  // Return processing
+  processedReturnRequests ReturnRequest[] @relation("ReturnRequestProcessor")
+
+  // Member profile requests
+  memberProfileRequests          MemberProfileRequest[] @relation("MemberProfileRequestUser")
+  processedMemberProfileRequests MemberProfileRequest[] @relation("MemberProfileRequestProcessor")
 
   @@map("users")
 }
@@ -567,16 +663,18 @@ model Order {
   cancelledAt           DateTime? @map("cancelled_at") @db.Timestamptz(6)
   completedAt           DateTime? @map("completed_at") @db.Timestamptz(6)
 
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(6)
 
-  user           User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
-  voucher        Voucher?             @relation(fields: [voucherId], references: [id], onDelete: Restrict)
-  items          OrderItem[]
-  statusHistory  OrderStatusHistory[]
-  payment        Payment?
-  voucherUsage   VoucherUsage?
-  returnRequests ReturnRequest[]
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  voucher              Voucher?             @relation(fields: [voucherId], references: [id], onDelete: Restrict)
+  items                OrderItem[]
+  statusHistory        OrderStatusHistory[]
+  payment              Payment?
+  voucherUsage         VoucherUsage?
+  returnRequests       ReturnRequest[]      @relation("ReturnOriginalOrder")
+  replacementForReturn ReturnRequest?       @relation("ReturnReplacement")
 
   @@index([userId, createdAt(sort: Desc)], map: "orders_user_created_idx")
   @@index([status, createdAt(sort: Desc)], map: "orders_status_created_idx")
@@ -598,6 +696,7 @@ model OrderItem {
   unitPrice         Decimal @map("unit_price") @db.Decimal(14, 2)
   quantity          Int
   lineTotal         Decimal @map("line_total") @db.Decimal(14, 2)
+  discountAmount    Decimal @default(0) @map("discount_amount") @db.Decimal(14, 2)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
@@ -653,8 +752,8 @@ model Payment {
   order        Order                @relation(fields: [orderId], references: [id], onDelete: Restrict)
   transactions PaymentTransaction[]
 
+  @@unique([providerTxnId], map: "payments_provider_txn_idx")
   @@index([status, createdAt(sort: Desc)], map: "payments_status_created_idx")
-  @@index([providerTxnId], map: "payments_provider_txn_idx")
   @@index([status, expiresAt], map: "payments_status_expires_idx")
   @@map("payments")
 }
@@ -722,24 +821,37 @@ model ReviewImage {
 // ==========================================
 
 model ReturnRequest {
-  id              String           @id @default(uuid()) @db.Uuid
-  orderId         String           @map("order_id") @db.Uuid
-  userId          String           @map("user_id") @db.Uuid
-  type            ReturnType
-  resolution      ReturnResolution
-  status          ReturnStatus     @default(REQUESTED)
-  reason          String           @db.VarChar(500)
-  customerNote    String?          @map("customer_note") @db.Text
-  adminNote       String?          @map("admin_note") @db.Text
-  refundAmount    Decimal?         @map("refund_amount") @db.Decimal(14, 2)
-  refundReference String?          @map("refund_reference") @db.VarChar(160)
-  processedAt     DateTime?        @map("processed_at") @db.Timestamptz(6)
+  id         String           @id @default(uuid()) @db.Uuid
+  orderId    String           @map("order_id") @db.Uuid
+  userId     String           @map("user_id") @db.Uuid
+  type       ReturnType
+  resolution ReturnResolution
+  status     ReturnStatus     @default(REQUESTED)
+
+  reason       String  @db.VarChar(500)
+  customerNote String? @map("customer_note") @db.Text
+  adminNote    String? @map("admin_note") @db.Text
+
+  refundAmount    Decimal? @map("refund_amount") @db.Decimal(14, 2)
+  refundReference String?  @map("refund_reference") @db.VarChar(160)
+
+  receivedAt  DateTime? @map("received_at") @db.Timestamptz(6)
+  inspectedAt DateTime? @map("inspected_at") @db.Timestamptz(6)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+
+  processedById      String? @map("processed_by_id") @db.Uuid
+  replacementOrderId String? @unique(map: "return_requests_replacement_order_id_key") @map("replacement_order_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  order Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  user  User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order Order @relation("ReturnOriginalOrder", fields: [orderId], references: [id], onDelete: Restrict)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  processedBy User? @relation("ReturnRequestProcessor", fields: [processedById], references: [id], onDelete: SetNull)
+
+  replacementOrder Order? @relation("ReturnReplacement", fields: [replacementOrderId], references: [id], onDelete: Restrict)
+
   items ReturnItem[]
 
   @@index([userId, createdAt(sort: Desc)], map: "return_requests_user_created_idx")
@@ -749,19 +861,89 @@ model ReturnRequest {
 }
 
 model ReturnItem {
-  id                String  @id @default(uuid()) @db.Uuid
-  returnRequestId   String  @map("return_request_id") @db.Uuid
-  orderItemId       String  @map("order_item_id") @db.Uuid
-  quantity          Int
-  conditionNote     String? @map("condition_note") @db.Text
+  id              String @id @default(uuid()) @db.Uuid
+  returnRequestId String @map("return_request_id") @db.Uuid
+  orderItemId     String @unique(map: "return_items_order_item_id_key") @map("order_item_id") @db.Uuid
+
+  quantity Int
+  status   ReturnItemStatus @default(PENDING)
+
+  conditionNote   String? @map("condition_note") @db.Text
+  rejectionReason String? @map("rejection_reason") @db.Text
+
   exchangeVariantId String? @map("exchange_variant_id") @db.Uuid
   exchangeQuantity  Int?    @map("exchange_quantity")
 
-  returnRequest   ReturnRequest   @relation(fields: [returnRequestId], references: [id], onDelete: Restrict)
-  orderItem       OrderItem       @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  returnRequest ReturnRequest @relation(fields: [returnRequestId], references: [id], onDelete: Restrict)
+  orderItem     OrderItem     @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+
   exchangeVariant ProductVariant? @relation("ExchangeVariant", fields: [exchangeVariantId], references: [id], onDelete: Restrict)
 
   @@index([returnRequestId], map: "return_items_request_idx")
-  @@index([orderItemId], map: "return_items_order_item_id_idx")
   @@map("return_items")
+}
+
+// ==========================================
+// CHAT SUPPORT
+// ==========================================
+
+model ChatConversation {
+  id         String                 @id @default(uuid()) @db.Uuid
+  customerId String                 @unique(map: "chat_conversations_customer_id_key") @map("customer_id") @db.Uuid
+  status     ChatConversationStatus @default(OPEN)
+
+  lastMessageAt DateTime @default(now()) @map("last_message_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customer User          @relation("ChatConversationCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  messages ChatMessage[]
+
+  @@index([status, lastMessageAt], map: "chat_conversations_status_last_message_at_idx")
+  @@map("chat_conversations")
+}
+
+model ChatMessage {
+  id             String @id @default(uuid()) @db.Uuid
+  conversationId String @map("conversation_id") @db.Uuid
+  senderId       String @map("sender_id") @db.Uuid
+
+  content String    @db.Text
+  readAt  DateTime? @map("read_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User             @relation("ChatMessageSender", fields: [senderId], references: [id], onDelete: Restrict)
+
+  @@index([conversationId, createdAt], map: "chat_messages_conversation_created_at_idx")
+  @@index([senderId, createdAt], map: "chat_messages_sender_created_at_idx")
+  @@map("chat_messages")
+}
+
+model MemberProfileRequest {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  requestedFullName String? @map("requested_full_name") @db.VarChar(150)
+  requestedPhone    String? @map("requested_phone") @db.VarChar(20)
+
+  status MemberProfileRequestStatus @default(REQUESTED)
+
+  adminNote String? @map("admin_note") @db.Text
+
+  processedById String?   @map("processed_by_id") @db.Uuid
+  processedAt   DateTime? @map("processed_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation("MemberProfileRequestUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  processedBy User? @relation("MemberProfileRequestProcessor", fields: [processedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)], map: "member_profile_requests_user_created_idx")
+  @@index([status, createdAt(sort: Desc)], map: "member_profile_requests_status_created_idx")
+  @@map("member_profile_requests")
 }

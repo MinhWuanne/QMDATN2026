@@ -54,8 +54,25 @@ const customerLoginSchema = z
   })
   .strict();
 
+const verifyEmailSchema = z
+  .object({
+    email: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .email("Email không hợp lệ")
+      .max(255, "Email không được vượt quá 255 ký tự"),
+
+    code: z
+      .string()
+      .trim()
+      .regex(/^\d{6}$/, "Mã OTP phải gồm 6 chữ số"),
+  })
+  .strict();
+
 module.exports = {
   registerSchema,
   customerLoginSchema,
   resendRegistrationOtpSchema,
+  verifyEmailSchema,
 };

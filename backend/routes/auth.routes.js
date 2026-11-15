@@ -19,17 +19,22 @@ const {
     resetPasswordSchema,
 } = require("../modules/auth/customer/password-reset.validator");
 
+const router = express.Router();
+
 const {
+    verifyEmailSchema,
     resendRegistrationOtpSchema,
 } = require("../modules/auth/customer/customer-auth.validator");
-
-const router = express.Router();
 
 router.post("/register", register);
 router.post("/login", loginCustomerController);
 router.post("/refresh", csrfProtection, refresh);
 router.post("/logout", csrfProtection, logout);
-router.post("/verify-email", verifyEmail);
+router.post(
+    "/verify-email",
+    validate(verifyEmailSchema),
+    verifyEmail
+);
 router.post(
     "/resend-verification",
     validate(resendRegistrationOtpSchema),
@@ -37,5 +42,6 @@ router.post(
 );
 router.post("/forgot-password", validate(forgotPasswordSchema), forgotPassword);
 router.post("/reset-password", validate(resetPasswordSchema), resetPasswordController);
+
 
 module.exports = router;

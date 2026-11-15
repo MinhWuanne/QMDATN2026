@@ -1,21 +1,7 @@
 
-import { adminAuthRequest } from "./admin-auth.service.js";
+import { refreshAdminSession } from "./admin-auth.service.js";
 
 const API = "/api/admin/orders";
-
-let refreshPromise = null;
-
-async function refreshSession() {
-  if (!refreshPromise) {
-    refreshPromise = adminAuthRequest("/refresh", {
-      method: "POST",
-    }).finally(() => {
-      refreshPromise = null;
-    });
-  }
-
-  return refreshPromise;
-}
 
 export async function adminOrderRequest(
   path,
@@ -51,7 +37,7 @@ export async function adminOrderRequest(
     let refreshed;
 
     try {
-      refreshed = await refreshSession();
+      refreshed = await refreshAdminSession();
     } catch {
       throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
     }

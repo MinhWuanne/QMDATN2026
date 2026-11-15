@@ -1,22 +1,11 @@
 ﻿import { useEffect, useState } from "react";
 import AdminLogin from "./pages/auth/AdminLogin.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
-import { adminAuthRequest } from "./services/admin-auth.service.js";
+import {
+  adminAuthRequest,
+  refreshAdminSession,
+} from "./services/admin-auth.service.js";
 import "./styles/admin.css";
-
-let adminRefreshPromise = null;
-
-function refreshAdminSession() {
-  if (!adminRefreshPromise) {
-    adminRefreshPromise = adminAuthRequest("/refresh", {
-      method: "POST",
-    }).finally(() => {
-      adminRefreshPromise = null;
-    });
-  }
-
-  return adminRefreshPromise;
-}
 
 export default function AdminApp() {
   const [session, setSession] = useState(null);
@@ -44,7 +33,7 @@ export default function AdminApp() {
           });
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => {
         if (active) setChecking(false);
       });

@@ -161,6 +161,36 @@ Mục đích: Tra cứu nhanh các nhóm giao diện để tái sử dụng khi 
    - Voucher detail modal
    - Responsive layouts
 
+[14] MEMBER MANAGEMENT
+    - .member-page
+    - .member-page-heading
+    - .member-stats-section
+    - .member-stats-grid
+    - .member-stat-card
+    - .member-list-card
+    - .member-table
+    - .member-name-cell
+    - .member-detail-modal
+    - .member-detail-body
+    - .member-detail-section
+    - .member-profile-grid
+    - .member-purchase-stats
+    - .member-detail-table
+    - .member-history-list
+    - .member-history-item
+    - .member-status-modal
+    - .member-danger-button
+
+    Dùng cho:
+    Quản lý danh sách Member, thống kê, hồ sơ chi tiết,
+    lịch sử trạng thái, thông tin mua hàng và thao tác
+    thay đổi trạng thái tài khoản.
+
+    Responsive:
+    - 1100px: Điều chỉnh lưới thống kê.
+    - 700px: Tối ưu bố cục chi tiết và modal.
+    - 420px: Tối ưu giao diện màn hình nhỏ.
+
 ============================================================================
 REUSE GUIDELINES
 - Ưu tiên tái sử dụng class hiện có trước khi tạo class mới.
