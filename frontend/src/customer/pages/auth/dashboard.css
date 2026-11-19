@@ -1,0 +1,1215 @@
+
+:root {
+  --md-ink: #20251e;
+  --md-dark: #252d23;
+  --md-muted: #777e73;
+  --md-line: #e9ece5;
+  --md-lime: #c9ed83;
+  --md-bg: #f6f7f3;
+}
+
+/* =========================================
+   01. BASE
+========================================= */
+
+.member-dashboard,
+.member-dashboard * {
+  box-sizing: border-box;
+}
+
+.member-dashboard {
+  min-height: 100vh;
+  display: flex;
+  color: var(--md-ink);
+  background: var(--md-bg);
+  font-family: inherit;
+}
+
+.member-dashboard button,
+.member-dashboard input {
+  font: inherit;
+}
+
+/* =========================================
+   02. SIDEBAR
+========================================= */
+
+.member-sidebar {
+  position: sticky;
+  top: 0;
+  width: 258px;
+  height: 100vh;
+  min-height: 620px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 30px 19px 20px;
+  color: #f3f5ef;
+  background: var(--md-dark);
+  overflow-y: auto;
+}
+
+.member-sidebar-brand {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+}
+
+.member-sidebar-brand > * {
+  max-width: 100%;
+}
+
+.member-sidebar-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 36px 9px 27px;
+}
+
+.member-sidebar-heading span {
+  color: #a9bd8e;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 1.7px;
+}
+
+.member-sidebar-heading strong {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.member-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.member-sidebar-label {
+  margin: 0 10px 12px;
+  color: #899286;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 1.5px;
+}
+
+.member-sidebar-link {
+  position: relative;
+  width: 100%;
+  min-height: 47px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: #c3c9bf;
+  background: transparent;
+  text-align: left;
+  font-size: 12px !important;
+  font-weight: 650 !important;
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.member-sidebar-link:not(:disabled) {
+  cursor: pointer;
+  opacity: 1;
+}
+
+.member-sidebar-link:not(:disabled):not(.active):hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.member-sidebar-link.active {
+  color: #27311e;
+  background: var(--md-lime);
+  border-color: var(--md-lime);
+  opacity: 1;
+  cursor: default;
+}
+
+.member-sidebar-icon {
+  width: 21px;
+  flex-shrink: 0;
+  font-size: 19px;
+  text-align: center;
+}
+
+.member-sidebar-link-text {
+  flex: 1;
+}
+
+/* =========================================
+   03. SIDEBAR MEMBER & LOGOUT
+========================================= */
+
+.member-sidebar-bottom {
+  margin-top: auto;
+  padding-top: 23px;
+  border-top: 1px solid #414b3e;
+}
+
+.member-sidebar-member {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 5px;
+}
+
+.member-sidebar-avatar,
+.member-topbar-avatar {
+  width: 39px;
+  height: 39px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--md-ink);
+  background: var(--md-lime);
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.member-sidebar-member-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.member-sidebar-member-info strong {
+  max-width: 160px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-sidebar-member-info span {
+  color: #a7b09f;
+  font-size: 10px;
+}
+
+.member-sidebar-logout {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 17px;
+  padding: 0 8px;
+  border: 0;
+  color: #d0d5cc;
+  background: transparent;
+  text-align: left;
+  font-size: 10px !important;
+  font-weight: 850 !important;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+}
+
+.member-sidebar-logout:hover:not(:disabled) {
+  color: var(--md-lime);
+}
+
+.member-sidebar-logout:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* =========================================
+   04. MAIN AREA & TOPBAR
+========================================= */
+
+.member-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.member-topbar {
+  min-height: 82px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 48px;
+  border-bottom: 1px solid var(--md-line);
+  background: #fff;
+}
+
+.member-topbar-eyebrow {
+  color: #92998d;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 1.5px;
+}
+
+.member-topbar h2 {
+  margin: 5px 0 0;
+  font-size: 19px;
+  font-weight: 850;
+  letter-spacing: -0.5px;
+}
+
+.member-topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.member-topbar-user > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.member-topbar-user strong {
+  max-width: 180px;
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-topbar-user > div span {
+  color: var(--md-muted);
+  font-size: 10px;
+}
+
+/* =========================================
+   05. MAIN CONTENT
+========================================= */
+
+.member-main-content {
+  width: 100%;
+  max-width: 1420px;
+  margin: 0 auto;
+  padding: 34px 48px 24px;
+}
+
+.member-main-content > .member-notice,
+.member-main-content > [role="alert"] {
+  margin-bottom: 18px;
+}
+
+/* =========================================
+   06. WELCOME SECTION
+========================================= */
+
+.member-welcome {
+  position: relative;
+  min-height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 25px;
+  padding: 37px 44px;
+  border-radius: 7px;
+  overflow: hidden;
+  color: #fff;
+  background: #283326;
+}
+
+.member-welcome::before {
+  position: absolute;
+  top: -145px;
+  right: 100px;
+  width: 370px;
+  height: 370px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  content: "";
+}
+
+.member-welcome::after {
+  position: absolute;
+  right: -100px;
+  bottom: -260px;
+  width: 470px;
+  height: 470px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  content: "";
+}
+
+.member-welcome-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.member-kicker {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--md-lime);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 1.7px;
+}
+
+.member-kicker > span {
+  width: 22px;
+  height: 2px;
+  background: var(--md-lime);
+}
+
+.member-welcome h1 {
+  margin: 19px 0 11px;
+  color: #fff;
+  font-size: clamp(30px, 3vw, 43px);
+  line-height: 1.13;
+  font-weight: 500;
+  letter-spacing: -1.8px;
+}
+
+.member-welcome h1 strong {
+  color: var(--md-lime);
+  font-weight: 850;
+}
+
+.member-welcome-copy > p {
+  margin: 0;
+  color: #c1c9bb;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.member-welcome-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  margin-top: 24px;
+  color: #d3d9ce;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.member-welcome-meta > span:first-child {
+  color: var(--md-lime);
+  font-size: 14px;
+}
+
+.member-meta-divider {
+  color: #7d8977;
+}
+
+.member-welcome-mark {
+  position: relative;
+  z-index: 1;
+  width: 210px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding-right: 7px;
+  transform: skew(-8deg);
+}
+
+.member-welcome-mark span {
+  color: rgba(255, 255, 255, 0.13);
+  font-size: 55px;
+  line-height: 0.95;
+  font-weight: 950;
+  letter-spacing: -5px;
+}
+
+.member-welcome-mark strong {
+  color: var(--md-lime);
+  font-size: 49px;
+  line-height: 1;
+  font-weight: 950;
+  letter-spacing: -3px;
+}
+
+.member-welcome-mark small {
+  margin-top: 12px;
+  color: #c1c9bb;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 1.5px;
+}
+
+/* =========================================
+   07. SECTION HEADINGS
+========================================= */
+
+.member-account-section {
+  margin-top: 38px;
+}
+
+.member-content-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 17px;
+}
+
+.member-section-eyebrow {
+  color: #92998d;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 1.6px;
+}
+
+.member-content-heading h2 {
+  margin: 7px 0 0;
+  color: var(--md-ink);
+  font-size: 21px;
+  font-weight: 850;
+  letter-spacing: -0.6px;
+}
+
+.member-content-heading p {
+  margin: 7px 0 0;
+  color: var(--md-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.member-section-count {
+  flex-shrink: 0;
+  padding-bottom: 3px;
+  color: #a0a69c;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 1.2px;
+}
+
+/* =========================================
+   08. ACCOUNT INFORMATION CARD
+========================================= */
+
+.member-account-card {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.8fr) minmax(0, 2fr);
+  align-items: center;
+  gap: 28px;
+  padding: 24px 27px;
+  border: 1px solid var(--md-line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.member-account-identity {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.member-account-avatar {
+  width: 57px;
+  height: 57px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #283326;
+  background: #eaf3dc;
+  font-size: 24px;
+  font-weight: 850;
+}
+
+.member-account-identity > div:last-child {
+  min-width: 0;
+}
+
+.member-account-identity > div:last-child > span {
+  color: #90988a;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 1px;
+}
+
+.member-account-identity h3 {
+  margin: 5px 0;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.member-account-identity small {
+  color: var(--md-muted);
+  font-size: 10px;
+}
+
+.member-account-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 15px;
+  padding-left: 25px;
+  border-left: 1px solid var(--md-line);
+}
+
+.member-detail {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.member-detail span {
+  color: #92998d;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.8px;
+}
+
+.member-detail strong {
+  overflow-wrap: anywhere;
+  color: var(--md-ink);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+/* =========================================
+   09. OVERVIEW ACTION
+========================================= */
+
+.member-overview-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 16px;
+  padding: 20px 24px;
+  border: 1px solid var(--md-line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.member-overview-action > div {
+  min-width: 0;
+}
+
+.member-overview-action strong {
+  display: block;
+  color: var(--md-ink);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.member-overview-action p {
+  margin: 6px 0 0;
+  color: var(--md-muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.member-overview-action button {
+  min-height: 42px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 17px;
+  border: 1px solid #293326;
+  border-radius: 4px;
+  color: #fff;
+  background: #293326;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.member-overview-action button:hover {
+  color: #293326;
+  background: var(--md-lime);
+  border-color: var(--md-lime);
+}
+
+/* =========================================
+   10. PROFILE PAGE
+========================================= */
+
+.member-profile-page {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.member-profile-page > .member-content-heading {
+  margin-bottom: 0;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--md-line);
+}
+
+.member-profile-section {
+  padding: 25px 27px;
+  border: 1px solid var(--md-line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.member-profile-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 22px;
+}
+
+.member-profile-section-heading span {
+  color: #8a967d;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 1.4px;
+}
+
+.member-profile-section-heading h3 {
+  margin: 8px 0 0;
+  color: var(--md-ink);
+  font-size: 17px;
+  font-weight: 850;
+  letter-spacing: -0.3px;
+}
+
+.member-profile-section-heading p {
+  margin: 7px 0 0;
+  color: var(--md-muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+/* Profile information card */
+
+.member-profile-section .member-account-card {
+  padding: 20px;
+  border-radius: 5px;
+  background: #fafbf8;
+}
+
+.member-profile-section .member-account-details {
+  border-color: #e6eae1;
+}
+
+/* Profile guidance */
+
+.member-profile-note {
+  margin: 15px 0 0;
+  padding: 12px 15px;
+  border-left: 3px solid #a7c879;
+  color: #70786a;
+  background: #f7f9f2;
+  font-size: 10px;
+  line-height: 1.8;
+}
+
+/* =========================================
+   11. PASSWORD CHANGE FORM
+========================================= */
+
+.member-security-icon {
+  width: 43px;
+  height: 43px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  color: #526b39;
+  background: #edf3e5;
+  font-size: 23px;
+}
+
+.member-password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.member-password-description {
+  display: flex;
+  align-items: flex-start;
+  gap: 17px;
+  padding: 18px 20px;
+  border: 1px solid #e9ece5;
+  border-radius: 5px;
+  background: #fafbf8;
+}
+
+.member-password-description > div:last-child {
+  min-width: 0;
+}
+
+.member-password-description strong {
+  display: block;
+  color: var(--md-ink);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.member-password-description p {
+  max-width: 650px;
+  margin: 7px 0 0;
+  color: var(--md-muted);
+  font-size: 10px;
+  line-height: 1.8;
+}
+
+.member-password-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.member-password-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.member-password-field:first-child {
+  grid-column: 1 / -1;
+}
+
+.member-password-field label {
+  color: #555e50;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.member-password-field input {
+  width: 100%;
+  min-height: 45px;
+  padding: 0 13px;
+  border: 1px solid #dfe4d9;
+  border-radius: 4px;
+  outline: none;
+  color: var(--md-ink);
+  background: #fff;
+  font-size: 12px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.member-password-field input::placeholder {
+  color: #a4aa9e;
+}
+
+.member-password-field input:focus {
+  border-color: #8eae62;
+  box-shadow: 0 0 0 3px rgba(167, 200, 121, 0.17);
+}
+
+.member-password-field input:disabled {
+  color: #92998d;
+  background: #f4f5f1;
+  cursor: not-allowed;
+}
+
+.member-password-field small {
+  color: #92998d;
+  font-size: 9px;
+  line-height: 1.6;
+}
+
+.member-password-error {
+  margin: 0;
+  padding: 11px 14px;
+  border: 1px solid #f0d5d2;
+  border-radius: 4px;
+  color: #a33e35;
+  background: #fff7f6;
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.member-password-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 5px;
+}
+
+.member-password-submit {
+  min-height: 43px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 20px;
+  border: 1px solid #293326;
+  border-radius: 4px;
+  color: #fff;
+  background: #293326;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+}
+
+.member-password-submit:hover:not(:disabled) {
+  color: #293326;
+  background: var(--md-lime);
+  border-color: var(--md-lime);
+}
+
+.member-password-submit:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+/* Password change success */
+
+.member-password-success {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 20px;
+  border: 1px solid #dce9cd;
+  border-radius: 5px;
+  background: #f7faF2;
+}
+
+.member-password-success-icon {
+  width: 39px;
+  height: 39px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #456c28;
+  background: #e5f0d8;
+  font-size: 19px;
+  font-weight: 850;
+}
+
+.member-password-success-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.member-password-success-content strong {
+  color: #365325;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.member-password-success-content p {
+  margin: 0;
+  color: #68765d;
+  font-size: 10px;
+  line-height: 1.8;
+}
+
+.member-password-success-content button {
+  min-height: 38px;
+  margin-top: 5px;
+  padding: 0 15px;
+  border: 1px solid #456c28;
+  border-radius: 4px;
+  color: #fff;
+  background: #456c28;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.member-password-success-content button:hover {
+  color: #365325;
+  background: var(--md-lime);
+  border-color: var(--md-lime);
+}
+
+/* =========================================
+   12. FOOTER
+========================================= */
+
+.member-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-top: 35px;
+  padding: 20px 0 5px;
+  border-top: 1px solid var(--md-line);
+}
+
+.member-footer > strong {
+  color: var(--md-ink);
+  font-size: 16px;
+  font-weight: 950;
+  letter-spacing: -0.7px;
+}
+
+.member-footer > strong span {
+  color: #8bb94d;
+}
+
+.member-footer p,
+.member-footer small {
+  margin: 0;
+  color: #92998d;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+/* =========================================
+   13. RESPONSIVE - TABLET
+========================================= */
+
+@media (max-width: 1100px) {
+  .member-sidebar {
+    width: 225px;
+  }
+
+  .member-topbar {
+    padding-right: 30px;
+    padding-left: 30px;
+  }
+
+  .member-main-content {
+    padding-right: 30px;
+    padding-left: 30px;
+  }
+
+  .member-account-card {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .member-account-details {
+    padding: 18px 0 0;
+    border-top: 1px solid var(--md-line);
+    border-left: 0;
+  }
+}
+
+/* =========================================
+   14. RESPONSIVE - MOBILE
+========================================= */
+
+@media (max-width: 760px) {
+  .member-sidebar {
+    position: relative;
+    top: auto;
+    width: 75px;
+    min-height: 100vh;
+    height: auto;
+    padding: 20px 9px;
+  }
+
+  .member-sidebar-brand {
+    justify-content: center;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .member-sidebar-brand > * {
+    transform: scale(0.72);
+    transform-origin: center;
+  }
+
+  .member-sidebar-heading,
+  .member-sidebar-label,
+  .member-sidebar-link-text,
+  .member-sidebar-bottom {
+    display: none;
+  }
+
+  .member-sidebar-nav {
+    margin-top: 30px;
+  }
+
+  .member-sidebar-link {
+    min-height: 47px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .member-sidebar-icon {
+    font-size: 21px;
+  }
+
+  .member-topbar {
+    min-height: 72px;
+    padding: 12px 19px;
+  }
+
+  .member-topbar-user > div {
+    display: none;
+  }
+
+  .member-main-content {
+    padding: 22px 19px;
+  }
+
+  .member-welcome {
+    min-height: 220px;
+    padding: 28px 25px;
+  }
+
+  .member-welcome-mark {
+    width: 130px;
+  }
+
+  .member-welcome-mark span {
+    font-size: 37px;
+  }
+
+  .member-welcome-mark strong {
+    font-size: 33px;
+  }
+
+  .member-welcome-mark small {
+    font-size: 6px;
+  }
+
+  .member-overview-action {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 17px;
+  }
+
+  .member-overview-action button {
+    width: 100%;
+  }
+
+  .member-profile-page {
+    gap: 17px;
+  }
+
+  .member-profile-section {
+    padding: 19px 15px;
+  }
+
+  .member-profile-section .member-account-card {
+    padding: 15px;
+  }
+
+  .member-password-description {
+    padding: 16px;
+  }
+
+  .member-password-fields {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .member-password-field:first-child {
+    grid-column: auto;
+  }
+
+  .member-password-actions {
+    justify-content: stretch;
+  }
+
+  .member-password-submit {
+    width: 100%;
+  }
+
+  .member-footer {
+    flex-wrap: wrap;
+  }
+}
+
+/* =========================================
+   15. RESPONSIVE - SMALL MOBILE
+========================================= */
+
+@media (max-width: 520px) {
+  .member-sidebar {
+    width: 58px;
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+
+  .member-sidebar-brand > * {
+    transform: scale(0.55);
+  }
+
+  .member-topbar-eyebrow {
+    font-size: 8px;
+  }
+
+  .member-topbar h2 {
+    font-size: 16px;
+  }
+
+  .member-topbar-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .member-main-content {
+    padding: 16px 12px;
+  }
+
+  .member-welcome {
+    min-height: 205px;
+    padding: 24px 19px;
+  }
+
+  .member-welcome h1 {
+    font-size: 29px;
+  }
+
+  .member-welcome-copy > p {
+    max-width: 245px;
+    font-size: 10px;
+  }
+
+  .member-welcome-mark {
+    display: none;
+  }
+
+  .member-content-heading h2 {
+    font-size: 18px;
+  }
+
+  .member-section-count {
+    font-size: 8px;
+  }
+
+  .member-account-card {
+    padding: 18px 15px;
+  }
+
+  .member-account-details {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .member-detail {
+    gap: 5px;
+  }
+
+  .member-profile-section-heading h3 {
+    font-size: 15px;
+  }
+
+  .member-profile-note {
+    font-size: 9px;
+  }
+
+  .member-password-description {
+    gap: 12px;
+  }
+
+  .member-security-icon {
+    width: 37px;
+    height: 37px;
+  }
+
+  .member-password-success {
+    gap: 11px;
+    padding: 15px;
+  }
+
+  .member-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+}

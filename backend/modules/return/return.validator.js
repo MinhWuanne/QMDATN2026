@@ -40,6 +40,9 @@ const myReturnListQuerySchema = z.object(pagination).strict();
 
 const adminReturnListQuerySchema = z.object({
     ...pagination,
+
+    customerId: uuidSchema.optional(),
+
     status: z.enum([
         "REQUESTED",
         "APPROVED",
@@ -48,10 +51,13 @@ const adminReturnListQuerySchema = z.object({
         "INSPECTING",
         "REFUND_PENDING",
         "WAITING_FOR_STOCK",
+        "REPLACEMENT_PENDING",
         "COMPLETED",
         "CANCELLED",
     ]).optional(),
+
     resolution: z.enum(["REFUND", "EXCHANGE"]).optional(),
+
     search: z.string().trim().max(100).optional(),
 }).strict();
 
@@ -63,7 +69,9 @@ const rejectReturnSchema = z.object({
     rejectionReason: z.string().trim().min(3).max(1000),
 }).strict();
 
-const receiveReturnSchema = z.object({
+const receiveReturnSchema = z.object({}).strict();
+
+const acceptReturnSchema = z.object({
     conditionNote: z.string().trim().max(1000).nullable().optional(),
 }).strict();
 
@@ -80,5 +88,6 @@ module.exports = {
     adminNoteSchema,
     rejectReturnSchema,
     receiveReturnSchema,
+    acceptReturnSchema,
     manualRefundSchema,
 };

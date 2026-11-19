@@ -1,0 +1,770 @@
+﻿============================================================
+FILE: routes/admin-auth.routes.js
+============================================================
+const express = require("express");
+
+const {
+    loginAdminController,
+    refreshAdmin,
+    logoutAdmin,
+} = require("../modules/auth/admin/admin-auth.controller");
+
+const csrfProtection = require("../middlewares/csrf.middleware");
+
+const router = express.Router();
+
+router.post("/login", loginAdminController);
+router.post("/refresh", csrfProtection, refreshAdmin);
+router.post("/logout", csrfProtection, logoutAdmin);
+
+module.exports = router;
+
+============================================================
+FILE: routes/admin/catalog.routes.js
+============================================================
+
+const express = require("express");
+const multer = require("multer");
+
+const { authenticate, authorize } = require("../../middlewares/auth.middleware");
+const validate = require("../../middlewares/validate.middleware");
+
+const categoryController = require("../../modules/catalog/category/category.controller");
+const {
+    categoryCreateSchema,
+    categoryUpdateSchema,
+} = require("../../modules/catalog/category/category.validator");
+
+const brandController = require("../../modules/catalog/brand/brand.controller");
+const {
+    brandCreateSchema,
+    brandUpdateSchema,
+} = require("../../modules/catalog/brand/brand.validator");
+
+const productController = require("../../modules/catalog/product/product.controller");
+const {
+    productCreateSchema,
+    productUpdateSchema,
+    productStatusUpdateSchema,
+    productListQuerySchema,
+    variantSchema,
+    variantUpdateSchema,
+} = require("../../modules/catalog/product/product.validator");
+
+const { uploadCatalogImage } = require("../../modules/catalog/catalog-upload.controller");
+
+const router = express.Router();
+
+const imageUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 5 * 1024 * 1024,
+        files: 1,
+    },
+    fileFilter(req, file, callback) {
+        const allowedMimeTypes = [
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+        ];
+
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+            return callback(new Error("INVALID_IMAGE_TYPE"));
+        }
+
+        callback(null, true);
+    },
+});
+
+const inventoryController = require("../../modules/inventory/inventory.controller");
+
+const {
+    inventoryListQuerySchema,
+    inventoryVariantParamsSchema,
+    inventoryMovementQuerySchema,
+    inventoryPurchaseSchema,
+    inventoryAdjustmentSchema,
+} = require("../../modules/inventory/inventory.validator");
+
+// All catalog management routes require an admin.
+router.use(authenticate, authorize("ADMIN"));
+
+// ==========================================
+// CATALOG IMAGE UPLOAD
+// ==========================================
+
+router.post(
+    "/images/:type",
+    (req, res, next) => {
+        imageUpload.single("image")(req, res, (error) => {
+            if (!error) return next();
+
+            if (
+                error instanceof multer.MulterError &&
+                error.code === "LIMIT_FILE_SIZE"
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message: "IMAGE_TOO_LARGE",
+                });
+            }
+
+            return res.status(400).json({
+                success: false,
+                message: error.message === "INVALID_IMAGE_TYPE"
+                    ? "INVALID_IMAGE_TYPE"
+                    : "IMAGE_UPLOAD_INVALID",
+            });
+        });
+    },
+    uploadCatalogImage
+);
+
+// ==========================================
+// CATEGORIES
+// ==========================================
+
+router.get("/categories", categoryController.listCategories);
+router.get("/categories/:id", categoryController.getCategory);
+
+router.post(
+    "/categories",
+    validate(categoryCreateSchema),
+    categoryController.createCategory
+);
+
+router.patch(
+    "/categories/:id",
+    validate(categoryUpdateSchema),
+    categoryController.updateCategory
+);
+
+router.delete("/categories/:id", categoryController.deleteCategory);
+
+// ==========================================
+// BRANDS
+// ==========================================
+
+router.get("/brands", brandController.listBrands);
+router.get("/brands/:id", brandController.getBrand);
+
+router.post(
+    "/brands",
+    validate(brandCreateSchema),
+    brandController.createBrand
+);
+
+router.patch(
+    "/brands/:id",
+    validate(brandUpdateSchema),
+    brandController.updateBrand
+);
+
+router.delete("/brands/:id", brandController.deleteBrand);
+
+// ==========================================
+// PRODUCTS
+// ==========================================
+
+router.get(
+    "/products",
+    validate(productListQuerySchema, "query"),
+    productController.listProducts
+);
+
+router.get(
+    "/products/:id",
+    productController.getProduct
+);
+
+router.post(
+    "/products",
+    validate(productCreateSchema),
+    productController.createProduct
+);
+
+router.patch(
+    "/products/:id",
+    validate(productUpdateSchema),
+    productController.updateProduct
+);
+
+router.patch(
+    "/products/:id/status",
+    validate(productStatusUpdateSchema),
+    productController.updateProductStatus
+);
+
+router.delete(
+    "/products/:id",
+    productController.archiveProduct
+);
+
+// ==========================================
+// PRODUCT VARIANTS
+// ==========================================
+
+router.post(
+    "/products/:id/variants",
+    validate(variantSchema),
+    productController.addProductVariant
+);
+
+router.patch(
+    "/products/:id/variants/:variantId",
+    validate(variantUpdateSchema),
+    productController.updateProductVariant
+);
+
+router.delete(
+    "/products/:id/variants/:variantId",
+    productController.deactivateProductVariant
+);
+
+// ==========================================
+// INVENTORY
+// ==========================================
+
+// GET /inventory
+router.get(
+    "/inventory",
+    validate(inventoryListQuerySchema, "query"),
+    inventoryController.listInventory
+);
+
+// GET /inventory/:variantId
+router.get(
+    "/inventory/:variantId",
+    validate(inventoryVariantParamsSchema, "params"),
+    inventoryController.getInventoryByVariantId
+);
+
+// GET /inventory/:variantId/movements
+router.get(
+    "/inventory/:variantId/movements",
+    validate(inventoryVariantParamsSchema, "params"),
+    validate(inventoryMovementQuerySchema, "query"),
+    inventoryController.listInventoryMovements
+);
+
+// POST /inventory/purchase
+router.post(
+    "/inventory/purchase",
+    validate(inventoryPurchaseSchema),
+    inventoryController.purchaseInventory
+);
+
+// POST /inventory/adjustment
+router.post(
+    "/inventory/adjustment",
+    validate(inventoryAdjustmentSchema),
+    inventoryController.adjustInventory
+);
+
+module.exports = router;
+
+============================================================
+FILE: routes/admin/chat.routes.js
+============================================================
+
+const express = require("express");
+
+const {
+    authenticate,
+    authorize,
+} = require("../../middlewares/auth.middleware");
+
+const validate = require("../../middlewares/validate.middleware");
+
+const controller = require("../../modules/chat/chat.controller");
+
+const {
+    chatMessageBodySchema,
+    chatMessageListQuerySchema,
+    chatConversationListQuerySchema,
+    chatConversationIdParamsSchema,
+} = require("../../modules/chat/chat.validator");
+
+const router = express.Router();
+
+// All Chat management routes require an Admin.
+router.use(authenticate, authorize("ADMIN"));
+
+// ==========================================
+// CONVERSATION LIST
+// ==========================================
+
+// GET /api/admin/chat/conversations
+router.get(
+    "/conversations",
+    validate(chatConversationListQuerySchema, "query"),
+    controller.listAdminConversations
+);
+
+// ==========================================
+// CONVERSATION MESSAGES
+// ==========================================
+
+// GET /api/admin/chat/conversations/:id/messages
+router.get(
+    "/conversations/:id/messages",
+    validate(chatConversationIdParamsSchema, "params"),
+    validate(chatMessageListQuerySchema, "query"),
+    controller.getAdminConversationMessages
+);
+
+// POST /api/admin/chat/conversations/:id/messages
+router.post(
+    "/conversations/:id/messages",
+    validate(chatConversationIdParamsSchema, "params"),
+    validate(chatMessageBodySchema),
+    controller.sendAdminMessage
+);
+
+// ==========================================
+// CLOSE CONVERSATION
+// ==========================================
+
+// PATCH /api/admin/chat/conversations/:id/close
+router.patch(
+    "/conversations/:id/close",
+    validate(chatConversationIdParamsSchema, "params"),
+    controller.closeConversation
+);
+
+module.exports = router;
+
+============================================================
+FILE: routes/admin/member.routes.js
+============================================================
+const express = require("express");
+
+const {
+    authenticate,
+    authorize,
+} = require("../../middlewares/auth.middleware");
+
+const validate = require("../../middlewares/validate.middleware");
+
+const controller = require("../../modules/member/member.controller");
+
+const {
+    memberListQuerySchema,
+    memberIdParamsSchema,
+    memberStatusUpdateSchema,
+} = require("../../modules/member/member.validator");
+
+const router = express.Router();
+
+// All member management routes require an admin.
+router.use(authenticate, authorize("ADMIN"));
+
+// ==========================================
+// MEMBERS
+// ==========================================
+
+// GET /api/admin/members
+router.get(
+    "/",
+    validate(memberListQuerySchema, "query"),
+    controller.listMembers
+);
+
+// GET /api/admin/members/stats
+// Must be declared before /:id.
+router.get(
+    "/stats",
+    controller.getMemberStats
+);
+
+// GET /api/admin/members/:id
+router.get(
+    "/:id",
+    validate(memberIdParamsSchema, "params"),
+    controller.getMember
+);
+
+// PATCH /api/admin/members/:id/status
+router.patch(
+    "/:id/status",
+    validate(memberIdParamsSchema, "params"),
+    validate(memberStatusUpdateSchema),
+    controller.updateMemberStatus
+);
+
+module.exports = router;
+
+============================================================
+FILE: routes/admin/voucher.routes.js
+============================================================
+const express = require("express");
+
+const {
+    authenticate,
+    authorize,
+} = require("../../middlewares/auth.middleware");
+
+const validate = require("../../middlewares/validate.middleware");
+
+const controller = require("../../modules/voucher/voucher.controller");
+
+const {
+    voucherCreateSchema,
+    voucherUpdateSchema,
+    voucherStatusUpdateSchema,
+    voucherListQuerySchema,
+    voucherIdParamsSchema,
+} = require("../../modules/voucher/voucher.validator");
+
+const router = express.Router();
+
+// All voucher management routes require an admin.
+router.use(authenticate, authorize("ADMIN"));
+
+// ==========================================
+// VOUCHERS
+// ==========================================
+
+// GET /api/admin/vouchers
+router.get(
+    "/",
+    validate(voucherListQuerySchema, "query"),
+    controller.listVouchers
+);
+
+// GET /api/admin/vouchers/:id
+router.get(
+    "/:id",
+    validate(voucherIdParamsSchema, "params"),
+    controller.getVoucher
+);
+
+// POST /api/admin/vouchers
+router.post(
+    "/",
+    validate(voucherCreateSchema),
+    controller.createVoucher
+);
+
+// PATCH /api/admin/vouchers/:id
+router.patch(
+    "/:id",
+    validate(voucherIdParamsSchema, "params"),
+    validate(voucherUpdateSchema),
+    controller.updateVoucher
+);
+
+// PATCH /api/admin/vouchers/:id/status
+router.patch(
+    "/:id/status",
+    validate(voucherIdParamsSchema, "params"),
+    validate(voucherStatusUpdateSchema),
+    controller.updateVoucherStatus
+);
+
+module.exports = router;
+
+============================================================
+FILE: modules/order/order.routes.js
+============================================================
+
+const express = require("express");
+
+const router = express.Router();
+
+const { authenticate, authorize } = require("../../middlewares/auth.middleware");
+const validate = require("../../middlewares/validate.middleware");
+
+const orderController = require("./order.controller");
+const orderValidator = require("./order.validator");
+
+// ==========================================
+// CUSTOMER ROUTES
+// ==========================================
+
+router.use(authenticate);
+
+// Táº¡o Ä‘Æ¡n hÃ ng tá»« giá» hÃ ng
+router.post(
+    "/",
+    authorize("CUSTOMER"),
+    validate(orderValidator.createOrderSchema),
+    orderController.createOrder
+);
+
+router.post(
+    "/:orderId/checkout",
+    authorize("CUSTOMER"),
+    validate(orderValidator.orderIdParamsSchema, "params"),
+    validate(orderValidator.startCheckoutSchema),
+    orderController.startCheckout
+);
+
+// Danh sÃ¡ch Ä‘Æ¡n hÃ ng cá»§a khÃ¡ch
+router.get(
+    "/",
+    authorize("CUSTOMER"),
+    validate(orderValidator.myOrderListQuerySchema, "query"),
+    orderController.listMyOrders
+);
+
+// Chi tiáº¿t Ä‘Æ¡n hÃ ng cá»§a khÃ¡ch
+router.get(
+    "/:orderId",
+    authorize("CUSTOMER"),
+    validate(orderValidator.orderIdParamsSchema, "params"),
+    orderController.getMyOrderById
+);
+
+// KhÃ¡ch há»§y Ä‘Æ¡n
+router.post(
+    "/:orderId/cancel",
+    authorize("CUSTOMER"),
+    validate(orderValidator.orderIdParamsSchema, "params"),
+    validate(orderValidator.cancelOrderSchema),
+    orderController.cancelMyOrder
+);
+
+// ==========================================
+// ADMIN ROUTES
+// ==========================================
+
+const adminRouter = express.Router();
+
+adminRouter.use(authenticate, authorize("ADMIN"));
+
+// Danh sÃ¡ch táº¥t cáº£ Ä‘Æ¡n hÃ ng
+adminRouter.get(
+    "/",
+    validate(orderValidator.adminOrderListQuerySchema, "query"),
+    orderController.listAdminOrders
+);
+
+// Chi tiáº¿t Ä‘Æ¡n hÃ ng
+adminRouter.get(
+    "/:orderId",
+    validate(orderValidator.orderIdParamsSchema, "params"),
+    orderController.getAdminOrderById
+);
+
+// Cáº­p nháº­t tráº¡ng thÃ¡i Ä‘Æ¡n
+adminRouter.patch(
+    "/:orderId/status",
+    validate(orderValidator.orderIdParamsSchema, "params"),
+    validate(orderValidator.updateOrderStatusSchema),
+    orderController.updateOrderStatus
+);
+
+// Admin xÃ¡c nháº­n Ä‘Ã£ nháº­n tiá»n COD
+adminRouter.post(
+    "/:orderId/mark-paid",
+    validate(orderValidator.orderIdParamsSchema, "params"),
+    validate(orderValidator.markOrderPaidSchema),
+    orderController.markOrderPaid
+);
+
+// Admin há»§y Ä‘Æ¡n
+adminRouter.post(
+    "/:orderId/cancel",
+    validate(orderValidator.orderIdParamsSchema, "params"),
+    validate(orderValidator.cancelOrderSchema),
+    orderController.cancelAdminOrder
+);
+
+// Export riÃªng Ä‘á»ƒ tÃ­ch há»£p vÃ o app á»Ÿ bÆ°á»›c sau
+module.exports = {
+    customerOrderRouter: router,
+    adminOrderRouter: adminRouter,
+};
+
+============================================================
+FILE: modules/return/return.routes.js
+============================================================
+
+const express = require("express");
+const { authenticate, authorize } = require("../../middlewares/auth.middleware");
+const validate = require("../../middlewares/validate.middleware");
+const controller = require("./return.controller");
+const validator = require("./return.validator");
+
+const customerRouter = express.Router();
+customerRouter.use(authenticate, authorize("CUSTOMER"));
+
+customerRouter.post(
+    "/",
+    validate(validator.createReturnRequestSchema),
+    controller.createMyReturnRequest
+);
+
+customerRouter.get(
+    "/",
+    validate(validator.myReturnListQuerySchema, "query"),
+    controller.listMyReturnRequests
+);
+
+customerRouter.get(
+    "/:returnRequestId",
+    validate(validator.returnIdParamsSchema, "params"),
+    controller.getMyReturnRequest
+);
+
+const adminRouter = express.Router();
+adminRouter.use(authenticate, authorize("ADMIN"));
+
+adminRouter.get(
+    "/",
+    validate(validator.adminReturnListQuerySchema, "query"),
+    controller.listAdminReturnRequests
+);
+
+adminRouter.get(
+    "/:returnRequestId",
+    validate(validator.returnIdParamsSchema, "params"),
+    controller.getAdminReturnRequest
+);
+
+adminRouter.post(
+    "/:returnRequestId/approve",
+    validate(validator.returnIdParamsSchema, "params"),
+    validate(validator.adminNoteSchema),
+    controller.approveReturnRequest
+);
+
+adminRouter.post(
+    "/:returnRequestId/reject",
+    validate(validator.returnIdParamsSchema, "params"),
+    validate(validator.rejectReturnSchema),
+    controller.rejectReturnRequest
+);
+
+adminRouter.post(
+    "/:returnRequestId/receive",
+    validate(validator.returnIdParamsSchema, "params"),
+    validate(validator.receiveReturnSchema),
+    controller.receiveReturnedItem
+);
+
+adminRouter.post(
+    "/:returnRequestId/accept",
+    validate(validator.returnIdParamsSchema, "params"),
+    validate(validator.acceptReturnSchema, "body"),
+    controller.acceptReturnedItem
+);
+
+adminRouter.post(
+    "/:returnRequestId/retry-exchange",
+    validate(validator.returnIdParamsSchema, "params"),
+    validate(validator.adminNoteSchema),
+    controller.retryExchangeWhenStockAvailable
+);
+
+adminRouter.post(
+    "/:returnRequestId/confirm-refund",
+    validate(validator.returnIdParamsSchema, "params"),
+    validate(validator.manualRefundSchema),
+    controller.confirmManualRefund
+);
+
+module.exports = {
+    customerReturnRouter: customerRouter,
+    adminReturnRouter: adminRouter,
+};
+
+============================================================
+FILE: modules/member-profile-request/member-profile-request.routes.js
+============================================================
+
+const express = require("express");
+
+const {
+    authenticate,
+    authorize,
+} = require("../../middlewares/auth.middleware");
+
+const validate = require("../../middlewares/validate.middleware");
+
+const controller = require("./member-profile-request.controller");
+const validator = require("./member-profile-request.validator");
+
+// ==========================================
+// CUSTOMER ROUTER
+// ==========================================
+
+const customerRouter = express.Router();
+
+customerRouter.use(
+    authenticate,
+    authorize("CUSTOMER")
+);
+
+// Create profile update request
+customerRouter.post(
+    "/",
+    validate(validator.createProfileRequestSchema),
+    controller.createMyProfileRequest
+);
+
+// List own profile update requests
+customerRouter.get(
+    "/",
+    validate(validator.myProfileRequestListQuerySchema, "query"),
+    controller.listMyProfileRequests
+);
+
+// Get own profile update request
+customerRouter.get(
+    "/:requestId",
+    validate(validator.requestIdParamsSchema, "params"),
+    controller.getMyProfileRequest
+);
+
+// ==========================================
+// ADMIN ROUTER
+// ==========================================
+
+const adminRouter = express.Router();
+
+adminRouter.use(
+    authenticate,
+    authorize("ADMIN")
+);
+
+// List all profile update requests
+adminRouter.get(
+    "/",
+    validate(validator.adminProfileRequestListQuerySchema, "query"),
+    controller.listAdminProfileRequests
+);
+
+// Get profile update request detail
+adminRouter.get(
+    "/:requestId",
+    validate(validator.requestIdParamsSchema, "params"),
+    controller.getAdminProfileRequest
+);
+
+// Approve profile update request
+adminRouter.post(
+    "/:requestId/approve",
+    validate(validator.requestIdParamsSchema, "params"),
+    validate(validator.approveProfileRequestSchema),
+    controller.approveProfileRequest
+);
+
+// Reject profile update request
+adminRouter.post(
+    "/:requestId/reject",
+    validate(validator.requestIdParamsSchema, "params"),
+    validate(validator.rejectProfileRequestSchema),
+    controller.rejectProfileRequest
+);
+
+// ==========================================
+// EXPORTS
+// ==========================================
+
+module.exports = {
+    customerProfileRequestRouter: customerRouter,
+    adminProfileRequestRouter: adminRouter,
+};
+

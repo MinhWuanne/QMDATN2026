@@ -1,3 +1,4 @@
+
 import { refreshAdminSession } from "./admin-auth.service.js";
 
 const API = "/api/admin/returns";
@@ -52,13 +53,20 @@ async function request(path, options = {}, accessToken, onTokenRefreshed) {
   if (!response.ok || data.success === false) {
     const messages = {
       RETURN_REQUEST_NOT_FOUND: "Không tìm thấy yêu cầu đổi/trả.",
-      RETURN_REQUEST_CANNOT_BE_APPROVED: "Yêu cầu không còn ở trạng thái chờ duyệt.",
-      RETURN_REQUEST_CANNOT_BE_REJECTED: "Không thể từ chối yêu cầu ở trạng thái hiện tại.",
-      RETURN_REQUEST_NOT_APPROVED: "Cần duyệt yêu cầu trước khi xác nhận nhận hàng.",
-      RETURN_REFUND_NOT_PENDING: "Yêu cầu chưa ở trạng thái chờ hoàn tiền.",
-      RETURN_EXCHANGE_NOT_WAITING_FOR_STOCK: "Yêu cầu đổi hàng không chờ bổ sung tồn kho.",
-      EXCHANGE_STOCK_STILL_INSUFFICIENT: "Tồn kho phiên bản thay thế vẫn chưa đủ.",
-      RETURN_CONCURRENT_UPDATE: "Dữ liệu vừa được cập nhật ở nơi khác. Vui lòng tải lại.",
+      RETURN_REQUEST_CANNOT_BE_APPROVED:
+        "Yêu cầu không còn ở trạng thái chờ duyệt.",
+      RETURN_REQUEST_CANNOT_BE_REJECTED:
+        "Không thể từ chối yêu cầu ở trạng thái hiện tại.",
+      RETURN_REQUEST_NOT_APPROVED:
+        "Cần duyệt yêu cầu trước khi xác nhận nhận hàng.",
+      RETURN_REFUND_NOT_PENDING:
+        "Yêu cầu chưa ở trạng thái chờ hoàn tiền.",
+      RETURN_EXCHANGE_NOT_WAITING_FOR_STOCK:
+        "Yêu cầu đổi hàng không chờ bổ sung tồn kho.",
+      EXCHANGE_STOCK_STILL_INSUFFICIENT:
+        "Tồn kho phiên bản thay thế vẫn chưa đủ.",
+      RETURN_CONCURRENT_UPDATE:
+        "Dữ liệu vừa được cập nhật ở nơi khác. Vui lòng tải lại.",
     };
 
     throw new Error(
@@ -84,45 +92,97 @@ function queryString(params = {}) {
 export const adminReturnService = {
   list(params, token, onTokenRefreshed) {
     const query = queryString(params);
-    return request(query ? `?${query}` : "", { method: "GET" }, token, onTokenRefreshed);
+
+    return request(
+      query ? `?${query}` : "",
+      { method: "GET" },
+      token,
+      onTokenRefreshed
+    );
   },
 
   getById(id, token, onTokenRefreshed) {
-    return request(`/${encodeURIComponent(id)}`, { method: "GET" }, token, onTokenRefreshed);
+    return request(
+      `/${encodeURIComponent(id)}`,
+      { method: "GET" },
+      token,
+      onTokenRefreshed
+    );
   },
 
   approve(id, payload, token, onTokenRefreshed) {
-    return request(`/${encodeURIComponent(id)}/approve`, {
-      method: "POST",
-      body: JSON.stringify(payload || {}),
-    }, token, onTokenRefreshed);
+    return request(
+      `/${encodeURIComponent(id)}/approve`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload || {}),
+      },
+      token,
+      onTokenRefreshed
+    );
   },
 
   reject(id, payload, token, onTokenRefreshed) {
-    return request(`/${encodeURIComponent(id)}/reject`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }, token, onTokenRefreshed);
+    return request(
+      `/${encodeURIComponent(id)}/reject`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+      token,
+      onTokenRefreshed
+    );
   },
 
-  receive(id, payload, token, onTokenRefreshed) {
-    return request(`/${encodeURIComponent(id)}/receive`, {
-      method: "POST",
-      body: JSON.stringify(payload || {}),
-    }, token, onTokenRefreshed);
+  // Admin xác nhận đã nhận hàng.
+  // Backend chỉ chuyển trạng thái sang INSPECTING, chưa cập nhật tồn kho.
+  receive(id, _payload, token, onTokenRefreshed) {
+    return request(
+      `/${encodeURIComponent(id)}/receive`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+      },
+      token,
+      onTokenRefreshed
+    );
+  },
+
+  // Admin chấp nhận hàng sau khi kiểm tra.
+  // Backend cập nhật tồn kho và chuyển sang bước hoàn tiền hoặc đổi hàng.
+  accept(id, payload, token, onTokenRefreshed) {
+    return request(
+      `/${encodeURIComponent(id)}/accept`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload || {}),
+      },
+      token,
+      onTokenRefreshed
+    );
   },
 
   retryExchange(id, payload, token, onTokenRefreshed) {
-    return request(`/${encodeURIComponent(id)}/retry-exchange`, {
-      method: "POST",
-      body: JSON.stringify(payload || {}),
-    }, token, onTokenRefreshed);
+    return request(
+      `/${encodeURIComponent(id)}/retry-exchange`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload || {}),
+      },
+      token,
+      onTokenRefreshed
+    );
   },
 
   confirmRefund(id, payload, token, onTokenRefreshed) {
-    return request(`/${encodeURIComponent(id)}/confirm-refund`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }, token, onTokenRefreshed);
+    return request(
+      `/${encodeURIComponent(id)}/confirm-refund`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+      token,
+      onTokenRefreshed
+    );
   },
 };

@@ -93,20 +93,30 @@ function handleReturnError(error) {
     }
 
     if (error.code === "P2002") {
-        const target = Array.isArray(error.meta?.target)
+        const rawTarget = Array.isArray(error.meta?.target)
             ? error.meta.target.join(" ")
             : String(error.meta?.target || "");
 
-        if (target.includes("order_item_id")) {
+        const target = rawTarget
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, "");
+
+        if (
+            target.includes("orderitemid") ||
+            target.includes("returnitemorderitemid")
+        ) {
             throwError("RETURN_ITEM_ALREADY_REQUESTED", 409);
         }
 
-        if (target.includes("one_active_per_order")) {
-            throwError("RETURN_ORDER_HAS_ACTIVE_REQUEST", 409);
+        if (target.includes("idempotencykey")) {
+            throwError("RETURN_REFUND_ALREADY_RECORDED", 409);
         }
 
-        if (target.includes("idempotency_key")) {
-            throwError("RETURN_REFUND_ALREADY_RECORDED", 409);
+        if (
+            target.includes("providertxnid") ||
+            target.includes("paymenttransactionsrefundprovidertxnunique")
+        ) {
+            throwError("RETURN_REFUND_REFERENCE_ALREADY_USED", 409);
         }
 
         throwError("RETURN_CONCURRENT_UPDATE", 409);
@@ -116,16 +126,58 @@ function handleReturnError(error) {
 }
 
 function calculateRefundAmount(orderItem, requestedQuantity) {
+    if (
+        !orderItem ||
+        !Number.isSafeInteger(requestedQuantity) ||
+        requestedQuantity < 1 ||
+        !Number.isSafeInteger(orderItem.quantity) ||
+        orderItem.quantity < requestedQuantity
+    ) {
+        throwError("RETURN_REFUND_AMOUNT_INVALID", 409);
+    }
+
     const grossAmount = new Prisma.Decimal(orderItem.unitPrice)
         .mul(requestedQuantity);
 
-    const allocatedDiscount = new Prisma.Decimal(orderItem.discountAmount || 0)
+    const allocatedDiscount = new Prisma.Decimal(
+        orderItem.discountAmount || 0
+    )
         .mul(requestedQuantity)
         .div(orderItem.quantity);
 
-    return grossAmount
+    const refundAmount = grossAmount
         .minus(allocatedDiscount)
         .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+
+    if (!refundAmount.isFinite() || refundAmount.lte(0)) {
+        throwError("RETURN_REFUND_AMOUNT_INVALID", 409);
+    }
+
+    return refundAmount;
+}
+
+function getReturnPagination(query = {}) {
+    const page = Number(query.page ?? 1);
+    const limit = Number(query.limit ?? 20);
+
+    const skip = (page - 1) * limit;
+
+    if (
+        !Number.isSafeInteger(page) ||
+        page < 1 ||
+        !Number.isSafeInteger(limit) ||
+        limit < 1 ||
+        limit > 100 ||
+        !Number.isSafeInteger(skip)
+    ) {
+        throwError("RETURN_INVALID_PAGINATION", 400);
+    }
+
+    return {
+        page,
+        limit,
+        skip,
+    };
 }
 
 async function getReturnOrThrow(tx, returnRequestId) {
@@ -142,9 +194,27 @@ async function getReturnOrThrow(tx, returnRequestId) {
 }
 
 async function createReplacementOrder(tx, request, returnItem, adminId) {
+    if (
+        request.resolution !== "EXCHANGE" ||
+        request.status !== "WAITING_FOR_STOCK" ||
+        returnItem.status !== "WAITING_FOR_STOCK"
+    ) {
+        throwError("RETURN_EXCHANGE_NOT_WAITING_FOR_STOCK", 409);
+    }
+
+    if (
+        !Number.isSafeInteger(returnItem.exchangeQuantity) ||
+        returnItem.exchangeQuantity < 1
+    ) {
+        throwError("RETURN_EXCHANGE_QUANTITY_INVALID", 409);
+    }
+
     const originalItem = returnItem.orderItem;
+
     const targetVariant = await tx.productVariant.findUnique({
-        where: { id: returnItem.exchangeVariantId },
+        where: {
+            id: returnItem.exchangeVariantId,
+        },
         include: {
             product: {
                 select: {
@@ -166,7 +236,9 @@ async function createReplacementOrder(tx, request, returnItem, adminId) {
     }
 
     const inventory = await tx.inventory.findUnique({
-        where: { variantId: targetVariant.id },
+        where: {
+            variantId: targetVariant.id,
+        },
     });
 
     if (!inventory) {
@@ -183,12 +255,16 @@ async function createReplacementOrder(tx, request, returnItem, adminId) {
     const reservation = await tx.inventory.updateMany({
         where: {
             id: inventory.id,
+            reservedQuantity: inventory.reservedQuantity,
             AND: [
-                { quantityOnHand: inventory.quantityOnHand },
-                { reservedQuantity: inventory.reservedQuantity },
+                {
+                    quantityOnHand: inventory.quantityOnHand,
+                },
                 {
                     quantityOnHand: {
-                        gte: inventory.reservedQuantity + returnItem.exchangeQuantity,
+                        gte:
+                            inventory.reservedQuantity +
+                            returnItem.exchangeQuantity,
                     },
                 },
             ],
@@ -205,6 +281,7 @@ async function createReplacementOrder(tx, request, returnItem, adminId) {
     }
 
     const now = new Date();
+
     const orderNumber =
         "EX-" +
         now.toISOString().slice(0, 10).replace(/-/g, "") +
@@ -221,17 +298,20 @@ async function createReplacementOrder(tx, request, returnItem, adminId) {
             discountAmount: new Prisma.Decimal(0),
             shippingFee: new Prisma.Decimal(0),
             totalAmount: new Prisma.Decimal(0),
+
             shippingRecipientName: request.order.shippingRecipientName,
             shippingPhone: request.order.shippingPhone,
             shippingProvinceCity: request.order.shippingProvinceCity,
             shippingDistrict: request.order.shippingDistrict,
             shippingStreet: request.order.shippingStreet,
             shippingAddressNote: request.order.shippingAddressNote,
+
             customerNote:
                 "Đơn hàng thay thế cho " +
                 request.order.orderNumber +
                 " / yêu cầu " +
                 request.id,
+
             items: {
                 create: {
                     productId: originalItem.productId,
@@ -268,21 +348,38 @@ async function createReplacementOrder(tx, request, returnItem, adminId) {
         },
     });
 
-    await tx.returnItem.update({
-        where: { id: returnItem.id },
-        data: { status: "COMPLETED" },
-    });
-
-    await tx.returnRequest.update({
-        where: { id: request.id },
+    const itemUpdate = await tx.returnItem.updateMany({
+        where: {
+            id: returnItem.id,
+            status: "WAITING_FOR_STOCK",
+        },
         data: {
-            status: "COMPLETED",
-            replacementOrderId: replacementOrder.id,
-            processedById: adminId,
-            processedAt: now,
-            adminNote: request.adminNote || "Đã tạo đơn hàng thay thế",
+            status: "REPLACEMENT_PENDING",
         },
     });
+
+    if (itemUpdate.count !== 1) {
+        throwError("RETURN_CONCURRENT_UPDATE", 409);
+    }
+
+    const requestUpdate = await tx.returnRequest.updateMany({
+        where: {
+            id: request.id,
+            status: "WAITING_FOR_STOCK",
+            replacementOrderId: null,
+        },
+        data: {
+            status: "REPLACEMENT_PENDING",
+            replacementOrderId: replacementOrder.id,
+            processedById: adminId,
+            processedAt: null,
+            adminNote: "Đã tạo đơn hàng thay thế, đang chờ giao",
+        },
+    });
+
+    if (requestUpdate.count !== 1) {
+        throwError("RETURN_CONCURRENT_UPDATE", 409);
+    }
 
     return replacementOrder;
 }
@@ -290,6 +387,7 @@ async function createReplacementOrder(tx, request, returnItem, adminId) {
 // ==========================================
 // CUSTOMER
 // ==========================================
+
 
 async function createReturnRequest(userId, input) {
     assertUuid(userId, "userId");
@@ -299,6 +397,13 @@ async function createReturnRequest(userId, input) {
     try {
         return await prisma.$transaction(
             async (tx) => {
+                if (!["REFUND", "EXCHANGE"].includes(input.resolution)) {
+                    throwValidationError(
+                        "resolution",
+                        "Hình thức xử lý yêu cầu không hợp lệ"
+                    );
+                }
+
                 const order = await tx.order.findFirst({
                     where: {
                         id: input.orderId,
@@ -314,7 +419,12 @@ async function createReturnRequest(userId, input) {
                     throwError("ORDER_NOT_FOUND", 404);
                 }
 
-                if (!order.payment || !["PAID", "PARTIALLY_REFUNDED"].includes(order.payment.status)) {
+                if (
+                    !order.payment ||
+                    !["PAID", "PARTIALLY_REFUNDED"].includes(
+                        order.payment.status
+                    )
+                ) {
                     throwError("RETURN_ORDER_NOT_PAID", 409);
                 }
 
@@ -329,6 +439,7 @@ async function createReturnRequest(userId, input) {
                 const now = Date.now();
 
                 if (
+                    !Number.isFinite(deliveredAt) ||
                     deliveredAt > now ||
                     now - deliveredAt > THREE_DAYS_MS
                 ) {
@@ -343,6 +454,7 @@ async function createReturnRequest(userId, input) {
                     throwError("ORDER_ITEM_NOT_FOUND", 404);
                 }
 
+                // Mỗi OrderItem chỉ được tạo một ReturnRequest trong toàn bộ vòng đời.
                 const existingItemRequest =
                     await tx.returnItem.findUnique({
                         where: {
@@ -354,6 +466,7 @@ async function createReturnRequest(userId, input) {
                     throwError("RETURN_ITEM_ALREADY_REQUESTED", 409);
                 }
 
+                // Mỗi đơn chỉ được có một yêu cầu chưa ở trạng thái kết thúc.
                 const activeRequest = await tx.returnRequest.findFirst({
                     where: {
                         orderId: order.id,
@@ -361,7 +474,9 @@ async function createReturnRequest(userId, input) {
                             notIn: TERMINAL_STATUSES,
                         },
                     },
-                    select: { id: true },
+                    select: {
+                        id: true,
+                    },
                 });
 
                 if (activeRequest) {
@@ -369,7 +484,7 @@ async function createReturnRequest(userId, input) {
                 }
 
                 if (
-                    !Number.isInteger(input.quantity) ||
+                    !Number.isSafeInteger(input.quantity) ||
                     input.quantity < 1 ||
                     input.quantity > orderItem.quantity
                 ) {
@@ -379,12 +494,14 @@ async function createReturnRequest(userId, input) {
                     );
                 }
 
-                const resolution = input.resolution;
-                const isExchange = resolution === "EXCHANGE";
+                const isExchange = input.resolution === "EXCHANGE";
                 let exchangeVariant = null;
 
                 if (isExchange) {
-                    assertUuid(input.exchangeVariantId, "exchangeVariantId");
+                    assertUuid(
+                        input.exchangeVariantId,
+                        "exchangeVariantId"
+                    );
 
                     if (input.exchangeVariantId === orderItem.variantId) {
                         throwValidationError(
@@ -394,7 +511,9 @@ async function createReturnRequest(userId, input) {
                     }
 
                     exchangeVariant = await tx.productVariant.findUnique({
-                        where: { id: input.exchangeVariantId },
+                        where: {
+                            id: input.exchangeVariantId,
+                        },
                         include: {
                             product: {
                                 select: {
@@ -423,14 +542,27 @@ async function createReturnRequest(userId, input) {
 
                 const refundAmount = isExchange
                     ? null
-                    : calculateRefundAmount(orderItem, input.quantity);
+                    : calculateRefundAmount(
+                        orderItem,
+                        input.quantity
+                    );
+
+                if (
+                    !isExchange &&
+                    (
+                        !refundAmount ||
+                        new Prisma.Decimal(refundAmount).lte(0)
+                    )
+                ) {
+                    throwError("RETURN_REFUND_AMOUNT_INVALID", 409);
+                }
 
                 const request = await tx.returnRequest.create({
                     data: {
                         orderId: order.id,
                         userId,
                         type: isExchange ? "EXCHANGE" : "RETURN",
-                        resolution,
+                        resolution: input.resolution,
                         status: "REQUESTED",
                         reason: input.reason,
                         customerNote: input.customerNote || null,
@@ -440,7 +572,8 @@ async function createReturnRequest(userId, input) {
                                 orderItemId: orderItem.id,
                                 quantity: input.quantity,
                                 status: "PENDING",
-                                exchangeVariantId: exchangeVariant?.id || null,
+                                exchangeVariantId:
+                                    exchangeVariant?.id || null,
                                 exchangeQuantity: isExchange
                                     ? input.quantity
                                     : null,
@@ -461,22 +594,92 @@ async function createReturnRequest(userId, input) {
     }
 }
 
+
+async function listMyEligibleOrders(userId) {
+    assertUuid(userId, "userId");
+
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - THREE_DAYS_MS);
+
+    const orders = await prisma.order.findMany({
+        where: {
+            userId,
+            status: {
+                in: ["DELIVERED", "COMPLETED"],
+            },
+            deliveredAt: {
+                gte: cutoff,
+                lte: now,
+            },
+            payment: {
+                is: {
+                    status: {
+                        in: ["PAID", "PARTIALLY_REFUNDED"],
+                    },
+                },
+            },
+            items: {
+                some: {
+                    returnItems: {
+                        none: {},
+                    },
+                },
+            },
+        },
+        orderBy: {
+            deliveredAt: "desc",
+        },
+        select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            deliveredAt: true,
+            items: {
+                where: {
+                    returnItems: {
+                        none: {},
+                    },
+                },
+                select: {
+                    id: true,
+                    productId: true,
+                    variantId: true,
+                    productName: true,
+                    variantName: true,
+                    sku: true,
+                    quantity: true,
+                    unitPrice: true,
+                    lineTotal: true,
+                },
+            },
+        },
+    });
+
+    return orders;
+}
+
+
 async function listMyReturnRequests(userId, query = {}) {
     assertUuid(userId, "userId");
 
-    const page = query.page || 1;
-    const limit = query.limit || 20;
+    const { page, limit, skip } = getReturnPagination(query);
+
     const where = { userId };
 
     const [items, total] = await prisma.$transaction([
         prisma.returnRequest.findMany({
             where,
-            skip: (page - 1) * limit,
+            skip,
             take: limit,
-            orderBy: { createdAt: "desc" },
+            orderBy: {
+                createdAt: "desc",
+            },
             include: RETURN_INCLUDE,
         }),
-        prisma.returnRequest.count({ where }),
+
+        prisma.returnRequest.count({
+            where,
+        }),
     ]);
 
     return {
@@ -514,20 +717,34 @@ async function getMyReturnRequest(userId, returnRequestId) {
 // ==========================================
 
 async function listAdminReturnRequests(query = {}) {
-    const page = query.page || 1;
-    const limit = query.limit || 20;
+    const { page, limit, skip } = getReturnPagination(query);
+
+    const search =
+        typeof query.search === "string"
+            ? query.search.trim()
+            : "";
 
     const where = {
-        ...(query.status ? { status: query.status } : {}),
-        ...(query.resolution ? { resolution: query.resolution } : {}),
-        ...(query.search
+        ...(query.customerId
+            ? { userId: query.customerId }
+            : {}),
+
+        ...(query.status
+            ? { status: query.status }
+            : {}),
+
+        ...(query.resolution
+            ? { resolution: query.resolution }
+            : {}),
+
+        ...(search
             ? {
                 OR: [
                     {
                         order: {
                             is: {
                                 orderNumber: {
-                                    contains: query.search,
+                                    contains: search,
                                     mode: "insensitive",
                                 },
                             },
@@ -537,7 +754,7 @@ async function listAdminReturnRequests(query = {}) {
                         user: {
                             is: {
                                 fullName: {
-                                    contains: query.search,
+                                    contains: search,
                                     mode: "insensitive",
                                 },
                             },
@@ -547,7 +764,7 @@ async function listAdminReturnRequests(query = {}) {
                         user: {
                             is: {
                                 email: {
-                                    contains: query.search,
+                                    contains: search,
                                     mode: "insensitive",
                                 },
                             },
@@ -561,12 +778,17 @@ async function listAdminReturnRequests(query = {}) {
     const [items, total] = await prisma.$transaction([
         prisma.returnRequest.findMany({
             where,
-            skip: (page - 1) * limit,
+            skip,
             take: limit,
-            orderBy: { createdAt: "desc" },
+            orderBy: {
+                createdAt: "desc",
+            },
             include: RETURN_INCLUDE,
         }),
-        prisma.returnRequest.count({ where }),
+
+        prisma.returnRequest.count({
+            where,
+        }),
     ]);
 
     return {
@@ -597,6 +819,10 @@ async function approveReturnRequest(returnRequestId, adminId, adminNote = null) 
                 throwError("RETURN_REQUEST_CANNOT_BE_APPROVED", 409);
             }
 
+            if (request.items.length !== 1) {
+                throwError("RETURN_ITEM_COUNT_INVALID", 409);
+            }
+
             const result = await tx.returnRequest.updateMany({
                 where: {
                     id: request.id,
@@ -605,7 +831,10 @@ async function approveReturnRequest(returnRequestId, adminId, adminNote = null) 
                 data: {
                     status: "APPROVED",
                     processedById: adminId,
-                    adminNote: adminNote || null,
+                    adminNote:
+                        typeof adminNote === "string" && adminNote.trim()
+                            ? adminNote.trim()
+                            : null,
                 },
             });
 
@@ -626,25 +855,33 @@ async function rejectReturnRequest(returnRequestId, adminId, rejectionReason) {
     assertUuid(returnRequestId, "returnRequestId");
     assertUuid(adminId, "adminId");
 
+    if (
+        typeof rejectionReason !== "string" ||
+        !rejectionReason.trim()
+    ) {
+        throwValidationError(
+            "rejectionReason",
+            "Lý do từ chối không được để trống"
+        );
+    }
+
+    const normalizedReason = rejectionReason.trim();
+
     try {
         return await prisma.$transaction(async (tx) => {
             const request = await getReturnOrThrow(tx, returnRequestId);
 
-            if (!["REQUESTED", "APPROVED"].includes(request.status)) {
+            if (!["REQUESTED", "APPROVED", "INSPECTING"].includes(request.status)) {
                 throwError("RETURN_REQUEST_CANNOT_BE_REJECTED", 409);
+            }
+
+            if (request.items.length !== 1) {
+                throwError("RETURN_ITEM_COUNT_INVALID", 409);
             }
 
             const item = request.items[0];
 
-            await tx.returnItem.update({
-                where: { id: item.id },
-                data: {
-                    status: "REJECTED",
-                    rejectionReason,
-                },
-            });
-
-            const result = await tx.returnRequest.updateMany({
+            const requestUpdate = await tx.returnRequest.updateMany({
                 where: {
                     id: request.id,
                     status: request.status,
@@ -653,11 +890,26 @@ async function rejectReturnRequest(returnRequestId, adminId, rejectionReason) {
                     status: "REJECTED",
                     processedById: adminId,
                     processedAt: new Date(),
-                    adminNote: rejectionReason,
+                    adminNote: normalizedReason,
                 },
             });
 
-            if (result.count !== 1) {
+            if (requestUpdate.count !== 1) {
+                throwError("RETURN_CONCURRENT_UPDATE", 409);
+            }
+
+            const itemUpdate = await tx.returnItem.updateMany({
+                where: {
+                    id: item.id,
+                    status: item.status,
+                },
+                data: {
+                    status: "REJECTED",
+                    rejectionReason: normalizedReason,
+                },
+            });
+
+            if (itemUpdate.count !== 1) {
                 throwError("RETURN_CONCURRENT_UPDATE", 409);
             }
 
@@ -670,7 +922,7 @@ async function rejectReturnRequest(returnRequestId, adminId, rejectionReason) {
     }
 }
 
-async function receiveReturnedItem(returnRequestId, adminId, conditionNote = null) {
+async function receiveReturnedItem(returnRequestId, adminId) {
     assertUuid(returnRequestId, "returnRequestId");
     assertUuid(adminId, "adminId");
 
@@ -682,21 +934,96 @@ async function receiveReturnedItem(returnRequestId, adminId, conditionNote = nul
                 throwError("RETURN_REQUEST_NOT_APPROVED", 409);
             }
 
+            if (request.items.length !== 1) {
+                throwError("RETURN_ITEM_COUNT_INVALID", 409);
+            }
+
+            const receivedAt = new Date();
+
+            const requestUpdate = await tx.returnRequest.updateMany({
+                where: {
+                    id: request.id,
+                    status: "APPROVED",
+                },
+                data: {
+                    status: "INSPECTING",
+                    receivedAt,
+                    processedById: adminId,
+                    adminNote:
+                        request.adminNote || "Đã nhận hàng, đang chờ kiểm tra",
+                },
+            });
+
+            if (requestUpdate.count !== 1) {
+                throwError("RETURN_CONCURRENT_UPDATE", 409);
+            }
+
+            return getReturnOrThrow(tx, request.id);
+        }, {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        });
+    } catch (error) {
+        handleReturnError(error);
+    }
+}
+
+async function acceptReturnedItem(
+    returnRequestId,
+    adminId,
+    conditionNote = null
+) {
+    assertUuid(returnRequestId, "returnRequestId");
+    assertUuid(adminId, "adminId");
+
+    try {
+        return await prisma.$transaction(async (tx) => {
+            const request = await getReturnOrThrow(tx, returnRequestId);
+
+            if (request.status !== "INSPECTING") {
+                throwError("RETURN_REQUEST_NOT_INSPECTING", 409);
+            }
+
+            if (!["REFUND", "EXCHANGE"].includes(request.resolution)) {
+                throwError("RETURN_RESOLUTION_INVALID", 409);
+            }
+
+            if (request.items.length !== 1) {
+                throwError("RETURN_ITEM_COUNT_INVALID", 409);
+            }
+
             const returnItem = request.items[0];
+
+            if (returnItem.status !== "PENDING") {
+                throwError("RETURN_ITEM_CANNOT_BE_ACCEPTED", 409);
+            }
+
+            if (
+                !Number.isSafeInteger(returnItem.quantity) ||
+                returnItem.quantity < 1
+            ) {
+                throwError("RETURN_INVENTORY_QUANTITY_INVALID", 409);
+            }
+
             const originalItem = returnItem.orderItem;
+
             const inventory = await tx.inventory.findUnique({
-                where: { variantId: originalItem.variantId },
+                where: {
+                    variantId: originalItem.variantId,
+                },
             });
 
             if (!inventory) {
                 throwError("INVENTORY_NOT_FOUND", 404);
             }
 
-            const newOnHand = inventory.quantityOnHand + returnItem.quantity;
+            const newOnHand =
+                inventory.quantityOnHand + returnItem.quantity;
 
             if (!Number.isSafeInteger(newOnHand)) {
                 throwError("RETURN_INVENTORY_QUANTITY_INVALID", 409);
             }
+
+            const now = new Date();
 
             const inventoryUpdate = await tx.inventory.updateMany({
                 where: {
@@ -721,54 +1048,69 @@ async function receiveReturnedItem(returnRequestId, adminId, conditionNote = nul
                     beforeStock: inventory.quantityOnHand,
                     afterStock: newOnHand,
                     referenceId: request.id,
-                    note: "Nhận hàng hoàn từ yêu cầu " + request.id,
+                    note:
+                        "Admin chấp nhận hàng hoàn từ yêu cầu " +
+                        request.id,
                     createdBy: adminId,
                 },
             });
 
-            await tx.returnItem.update({
-                where: { id: returnItem.id },
+            const nextItemStatus =
+                request.resolution === "REFUND"
+                    ? "REFUND_PENDING"
+                    : "WAITING_FOR_STOCK";
+
+            const itemUpdate = await tx.returnItem.updateMany({
+                where: {
+                    id: returnItem.id,
+                    status: "PENDING",
+                },
                 data: {
-                    conditionNote: conditionNote || null,
-                    status: request.resolution === "REFUND"
-                        ? "REFUND_PENDING"
-                        : "WAITING_FOR_STOCK",
+                    conditionNote:
+                        typeof conditionNote === "string" && conditionNote.trim()
+                            ? conditionNote.trim()
+                            : null,
+                    status: nextItemStatus,
                 },
             });
 
-            const receivedAt = new Date();
+            if (itemUpdate.count !== 1) {
+                throwError("RETURN_CONCURRENT_UPDATE", 409);
+            }
+
+            const nextRequestStatus =
+                request.resolution === "REFUND"
+                    ? "REFUND_PENDING"
+                    : "WAITING_FOR_STOCK";
+
+            const requestUpdate = await tx.returnRequest.updateMany({
+                where: {
+                    id: request.id,
+                    status: "INSPECTING",
+                },
+                data: {
+                    status: nextRequestStatus,
+                    inspectedAt: now,
+                    processedById: adminId,
+                    adminNote:
+                        request.resolution === "REFUND"
+                            ? "Hàng hoàn đạt yêu cầu kiểm tra, chờ hoàn tiền"
+                            : "Hàng hoàn đạt yêu cầu kiểm tra, chờ tạo đơn thay thế",
+                },
+            });
+
+            if (requestUpdate.count !== 1) {
+                throwError("RETURN_CONCURRENT_UPDATE", 409);
+            }
 
             if (request.resolution === "REFUND") {
-                await tx.returnRequest.update({
-                    where: { id: request.id },
-                    data: {
-                        status: "REFUND_PENDING",
-                        receivedAt,
-                        processedById: adminId,
-                        adminNote: request.adminNote || "Đã nhận hàng hoàn",
-                    },
-                });
-
                 return getReturnOrThrow(tx, request.id);
             }
 
-            const requestForReplacement = {
-                ...request,
-                order: {
-                    ...request.order,
-                    shippingRecipientName: request.order.shippingRecipientName,
-                    shippingPhone: request.order.shippingPhone,
-                    shippingProvinceCity: request.order.shippingProvinceCity,
-                    shippingDistrict: request.order.shippingDistrict,
-                    shippingStreet: request.order.shippingStreet,
-                    shippingAddressNote: request.order.shippingAddressNote,
-                },
-            };
-
-            // Address fields are fetched explicitly because RETURN_INCLUDE
-            // intentionally keeps the customer-facing order summary compact.
             const originalOrderAddress = await tx.order.findUnique({
-                where: { id: request.orderId },
+                where: {
+                    id: request.orderId,
+                },
                 select: {
                     shippingRecipientName: true,
                     shippingPhone: true,
@@ -779,33 +1121,33 @@ async function receiveReturnedItem(returnRequestId, adminId, conditionNote = nul
                 },
             });
 
-            requestForReplacement.order = {
-                ...requestForReplacement.order,
-                ...originalOrderAddress,
-            };
+            if (!originalOrderAddress) {
+                throwError("ORDER_NOT_FOUND", 404);
+            }
 
-            await tx.returnRequest.update({
-                where: { id: request.id },
-                data: {
-                    status: "WAITING_FOR_STOCK",
-                    receivedAt,
-                    processedById: adminId,
-                    adminNote: request.adminNote || "Đã nhận hàng đổi",
+            const requestForReplacement = {
+                ...request,
+                status: "WAITING_FOR_STOCK",
+                adminNote:
+                    "Hàng hoàn đạt yêu cầu kiểm tra, chờ tạo đơn thay thế",
+                order: {
+                    ...request.order,
+                    ...originalOrderAddress,
                 },
-            });
+            };
 
             const replacementOrder = await createReplacementOrder(
                 tx,
                 requestForReplacement,
-                returnItem,
+                {
+                    ...returnItem,
+                    status: "WAITING_FOR_STOCK",
+                },
                 adminId
             );
 
+            // null nghĩa là chưa đủ hàng, yêu cầu tiếp tục WAITING_FOR_STOCK.
             if (!replacementOrder) {
-                await tx.returnItem.update({
-                    where: { id: returnItem.id },
-                    data: { status: "WAITING_FOR_STOCK" },
-                });
                 return getReturnOrThrow(tx, request.id);
             }
 
@@ -818,7 +1160,11 @@ async function receiveReturnedItem(returnRequestId, adminId, conditionNote = nul
     }
 }
 
-async function retryExchangeWhenStockAvailable(returnRequestId, adminId) {
+async function retryExchangeWhenStockAvailable(
+    returnRequestId,
+    adminId,
+    adminNote = null
+) {
     assertUuid(returnRequestId, "returnRequestId");
     assertUuid(adminId, "adminId");
 
@@ -833,6 +1179,14 @@ async function retryExchangeWhenStockAvailable(returnRequestId, adminId) {
                 throwError("RETURN_EXCHANGE_NOT_WAITING_FOR_STOCK", 409);
             }
 
+            if (request.items.length !== 1) {
+                throwError("RETURN_ITEM_COUNT_INVALID", 409);
+            }
+
+            if (request.items[0].status !== "WAITING_FOR_STOCK") {
+                throwError("RETURN_ITEM_NOT_WAITING_FOR_STOCK", 409);
+            }
+
             const originalOrderAddress = await tx.order.findUnique({
                 where: { id: request.orderId },
                 select: {
@@ -844,6 +1198,10 @@ async function retryExchangeWhenStockAvailable(returnRequestId, adminId) {
                     shippingAddressNote: true,
                 },
             });
+
+            if (!originalOrderAddress) {
+                throwError("ORDER_NOT_FOUND", 404);
+            }
 
             const requestForReplacement = {
                 ...request,
@@ -862,6 +1220,26 @@ async function retryExchangeWhenStockAvailable(returnRequestId, adminId) {
 
             if (!replacementOrder) {
                 throwError("EXCHANGE_STOCK_STILL_INSUFFICIENT", 409);
+            }
+
+            const normalizedAdminNote =
+                typeof adminNote === "string" ? adminNote.trim() : "";
+
+            if (normalizedAdminNote) {
+                const noteUpdate = await tx.returnRequest.updateMany({
+                    where: {
+                        id: request.id,
+                        status: "REPLACEMENT_PENDING",
+                        replacementOrderId: replacementOrder.id,
+                    },
+                    data: {
+                        adminNote: normalizedAdminNote,
+                    },
+                });
+
+                if (noteUpdate.count !== 1) {
+                    throwError("RETURN_CONCURRENT_UPDATE", 409);
+                }
             }
 
             return getReturnOrThrow(tx, request.id);
@@ -888,6 +1266,24 @@ async function confirmManualRefund(returnRequestId, adminId, input) {
                 throwError("RETURN_REFUND_NOT_PENDING", 409);
             }
 
+            if (request.items.length !== 1) {
+                throwError("RETURN_ITEM_COUNT_INVALID", 409);
+            }
+
+            if (
+                !input ||
+                typeof input.refundReference !== "string" ||
+                !input.refundReference.trim() ||
+                input.refundReference.trim().length > 120
+            ) {
+                throwValidationError(
+                    "refundReference",
+                    "Mã tham chiếu hoàn tiền phải có từ 1 đến 120 ký tự"
+                );
+            }
+
+            const refundReference = input.refundReference.trim();
+
             const order = await tx.order.findUnique({
                 where: { id: request.orderId },
                 include: { payment: true },
@@ -897,11 +1293,14 @@ async function confirmManualRefund(returnRequestId, adminId, input) {
                 throwError("PAYMENT_NOT_FOUND", 404);
             }
 
-            if (!["PAID", "PARTIALLY_REFUNDED"].includes(order.payment.status)) {
+            const payment = order.payment;
+
+            if (!["PAID", "PARTIALLY_REFUNDED"].includes(payment.status)) {
                 throwError("PAYMENT_NOT_REFUNDABLE", 409);
             }
 
             const idempotencyKey = "RETURN-REFUND-" + request.id;
+
             const existing = await tx.paymentTransaction.findUnique({
                 where: { idempotencyKey },
             });
@@ -912,7 +1311,7 @@ async function confirmManualRefund(returnRequestId, adminId, input) {
 
             const reusedReference = await tx.paymentTransaction.findFirst({
                 where: {
-                    providerTxnId: input.refundReference,
+                    providerTxnId: refundReference,
                     type: "REFUND",
                 },
                 select: { id: true },
@@ -924,57 +1323,54 @@ async function confirmManualRefund(returnRequestId, adminId, input) {
 
             const amount = new Prisma.Decimal(request.refundAmount || 0);
 
-            if (amount.lte(0)) {
+            if (!amount.isFinite() || amount.lte(0)) {
                 throwError("RETURN_REFUND_AMOUNT_INVALID", 409);
             }
 
-            const transaction = await tx.paymentTransaction.create({
-                data: {
-                    paymentId: order.payment.id,
-                    type: "REFUND",
-                    requestData: {
-                        source: "ADMIN_MANUAL_REFUND",
-                        returnRequestId: request.id,
-                        orderId: order.id,
-                        adminId,
-                        amount: amount.toFixed(2),
-                    },
-                    responseData: {
-                        successful: true,
-                        refundReference: input.refundReference,
-                        confirmedAt: new Date().toISOString(),
-                    },
-                    providerTxnId: input.refundReference,
-                    idempotencyKey,
-                    isSuccessful: true,
-                },
-            });
-
+            // Tổng hợp tất cả giao dịch hoàn tiền thành công trước giao dịch này.
             const priorRefunds = await tx.paymentTransaction.findMany({
                 where: {
-                    paymentId: order.payment.id,
+                    paymentId: payment.id,
                     type: "REFUND",
                     isSuccessful: true,
-                    id: { not: transaction.id },
                 },
-                select: { requestData: true },
+                select: {
+                    requestData: true,
+                },
             });
 
-            const totalRefunded = priorRefunds.reduce(
-                (sum, item) => sum.add(
-                    new Prisma.Decimal(item.requestData?.amount || 0)
-                ),
-                amount
+            const previouslyRefunded = priorRefunds.reduce(
+                (sum, item) => {
+                    const previousAmount = new Prisma.Decimal(
+                        item.requestData?.amount || 0
+                    );
+
+                    if (!previousAmount.isFinite() || previousAmount.lt(0)) {
+                        throwError("RETURN_REFUND_AMOUNT_INVALID", 409);
+                    }
+
+                    return sum.add(previousAmount);
+                },
+                new Prisma.Decimal(0)
             );
 
-            const newPaymentStatus = totalRefunded.gte(order.payment.amount)
+            const totalRefunded = previouslyRefunded.add(amount);
+            const paymentAmount = new Prisma.Decimal(payment.amount);
+
+            // Không cho phép tổng tiền hoàn vượt số tiền thanh toán.
+            if (totalRefunded.gt(paymentAmount)) {
+                throwError("RETURN_REFUND_EXCEEDS_PAYMENT", 409);
+            }
+
+            const newPaymentStatus = totalRefunded.eq(paymentAmount)
                 ? "REFUNDED"
                 : "PARTIALLY_REFUNDED";
 
+            // CAS: chỉ cập nhật nếu Payment vẫn giữ trạng thái đã đọc.
             const paymentUpdate = await tx.payment.updateMany({
                 where: {
-                    id: order.payment.id,
-                    status: order.payment.status,
+                    id: payment.id,
+                    status: payment.status,
                 },
                 data: {
                     status: newPaymentStatus,
@@ -985,21 +1381,63 @@ async function confirmManualRefund(returnRequestId, adminId, input) {
                 throwError("RETURN_CONCURRENT_UPDATE", 409);
             }
 
-            await tx.returnItem.update({
-                where: { id: request.items[0].id },
-                data: { status: "COMPLETED" },
-            });
+            const now = new Date();
 
-            await tx.returnRequest.update({
-                where: { id: request.id },
+            await tx.paymentTransaction.create({
                 data: {
-                    status: "COMPLETED",
-                    refundReference: input.refundReference,
-                    processedById: adminId,
-                    processedAt: new Date(),
-                    adminNote: input.adminNote || "Đã xác nhận hoàn tiền thủ công",
+                    paymentId: payment.id,
+                    type: "REFUND",
+                    requestData: {
+                        source: "ADMIN_MANUAL_REFUND",
+                        returnRequestId: request.id,
+                        orderId: order.id,
+                        adminId,
+                        amount: amount.toFixed(2),
+                    },
+                    responseData: {
+                        successful: true,
+                        refundReference,
+                        confirmedAt: now.toISOString(),
+                    },
+                    providerTxnId: refundReference,
+                    idempotencyKey,
+                    isSuccessful: true,
                 },
             });
+
+            const itemUpdate = await tx.returnItem.updateMany({
+                where: {
+                    id: request.items[0].id,
+                    status: "REFUND_PENDING",
+                },
+                data: {
+                    status: "COMPLETED",
+                },
+            });
+
+            if (itemUpdate.count !== 1) {
+                throwError("RETURN_CONCURRENT_UPDATE", 409);
+            }
+
+            const requestUpdate = await tx.returnRequest.updateMany({
+                where: {
+                    id: request.id,
+                    status: "REFUND_PENDING",
+                },
+                data: {
+                    status: "COMPLETED",
+                    refundReference,
+                    processedById: adminId,
+                    processedAt: now,
+                    adminNote:
+                        input.adminNote ||
+                        "Đã xác nhận hoàn tiền thủ công",
+                },
+            });
+
+            if (requestUpdate.count !== 1) {
+                throwError("RETURN_CONCURRENT_UPDATE", 409);
+            }
 
             return getReturnOrThrow(tx, request.id);
         }, {
@@ -1009,6 +1447,7 @@ async function confirmManualRefund(returnRequestId, adminId, input) {
         handleReturnError(error);
     }
 }
+
 
 module.exports = {
     createReturnRequest,
@@ -1022,4 +1461,6 @@ module.exports = {
     retryExchangeWhenStockAvailable,
     confirmManualRefund,
     calculateRefundAmount,
+    acceptReturnedItem,
+    listMyEligibleOrders,
 };

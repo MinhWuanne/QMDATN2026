@@ -1,12 +1,21 @@
-﻿const API = "/api/auth";
+﻿
+const API = "/api/auth";
 
 const ERROR_MESSAGES = {
   INVALID_CREDENTIALS: "Email, số điện thoại hoặc mật khẩu không chính xác.",
   EMAIL_NOT_VERIFIED: "Email của bạn chưa được xác minh.",
   ACCOUNT_LOCKED: "Tài khoản đã bị khóa.",
   ACCOUNT_NOT_ACTIVE: "Tài khoản hiện không hoạt động.",
+  ACCOUNT_NOT_FOUND: "Không tìm thấy tài khoản.",
+  INVALID_USER_ROLE: "Tài khoản không có quyền thực hiện thao tác này.",
+
+  CURRENT_PASSWORD_INVALID: "Mật khẩu hiện tại không chính xác.",
+  PASSWORD_CHANGE_CONFLICT:
+    "Thông tin tài khoản vừa thay đổi. Vui lòng thử lại.",
+
   EMAIL_ALREADY_EXISTS: "Email này đã được sử dụng.",
   PHONE_ALREADY_EXISTS: "Số điện thoại này đã được sử dụng.",
+
   REGISTRATION_EMAIL_DELIVERY_FAILED:
     "Không thể gửi mã xác minh. Vui lòng thử lại sau.",
   OTP_EMAIL_DELIVERY_FAILED:
@@ -55,4 +64,30 @@ export async function apiRequest(path, options = {}) {
   }
 
   return data;
+}
+
+/**
+ * Đổi mật khẩu Customer đang đăng nhập.
+ */
+export async function changeCustomerPassword({
+  accessToken,
+  currentPassword,
+  newPassword,
+  confirmPassword,
+}) {
+  if (!accessToken) {
+    throw new Error("Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.");
+  }
+
+  return apiRequest("/change-password", {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    }),
+  });
 }

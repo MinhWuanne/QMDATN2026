@@ -1,5 +1,8 @@
-
+﻿
 const ERROR_STATUS_MAP = {
+
+    CURRENT_PASSWORD_INVALID: 400,
+    PASSWORD_CHANGE_CONFLICT: 409,
     VALIDATION_ERROR: 400,
 
     EMAIL_ALREADY_EXISTS: 409,
@@ -31,7 +34,6 @@ const ERROR_STATUS_MAP = {
     INVALID_USER_ROLE: 403,
 
     INVALID_OR_EXPIRED_RESET_TOKEN: 400,
-
 
     CATEGORY_NOT_FOUND: 404,
     BRAND_NOT_FOUND: 404,
@@ -83,6 +85,21 @@ const ERROR_STATUS_MAP = {
     MEMBER_CONCURRENT_UPDATE: 409,
 
     // ==========================================
+    // MEMBER PROFILE REQUESTS
+    // ==========================================
+
+    MEMBER_PROFILE_REQUEST_NOT_FOUND: 404,
+    MEMBER_PROFILE_REQUEST_USER_NOT_FOUND: 404,
+
+    MEMBER_PROFILE_REQUEST_INVALID_DATA: 400,
+    MEMBER_PROFILE_REQUEST_REJECTION_REASON_REQUIRED: 400,
+
+    MEMBER_PROFILE_REQUEST_ALREADY_PENDING: 409,
+    MEMBER_PROFILE_REQUEST_CANNOT_BE_APPROVED: 409,
+    MEMBER_PROFILE_REQUEST_CANNOT_BE_REJECTED: 409,
+    MEMBER_PROFILE_REQUEST_CONCURRENT_UPDATE: 409,
+
+    // ==========================================
     // RETURNS & EXCHANGES
     // ==========================================
 
@@ -108,6 +125,13 @@ const ERROR_STATUS_MAP = {
     INVENTORY_NOT_FOUND: 404,
     RETURN_INVENTORY_QUANTITY_INVALID: 409,
 
+    // ==========================================
+    // ADDRESS BOOK
+    // ==========================================
+
+    ADDRESS_NOT_FOUND: 404,
+    ADDRESS_LIMIT_REACHED: 409,
+    ADDRESS_CONCURRENT_UPDATE: 409,
     // ==========================================
     // CHAT
     // ==========================================
@@ -158,3 +182,4 @@ function errorHandler(err, req, res, next) {
 }
 
 module.exports = errorHandler;
+

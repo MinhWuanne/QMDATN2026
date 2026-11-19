@@ -1,5 +1,4 @@
-
-const express = require("express");
+﻿const express = require("express");
 
 const {
     authenticate,
@@ -8,12 +7,20 @@ const {
 
 const validate = require("../middlewares/validate.middleware");
 
-const controller = require("../modules/chat/chat.controller");
+const chatController = require("../modules/chat/chat.controller");
 
 const {
     chatMessageBodySchema,
     chatMessageListQuerySchema,
 } = require("../modules/chat/chat.validator");
+
+const addressController = require("../modules/address/address.controller");
+
+const {
+    addressIdParamsSchema,
+    createAddressSchema,
+    updateAddressSchema,
+} = require("../modules/address/address.validator");
 
 const router = express.Router();
 
@@ -28,14 +35,53 @@ router.use(authenticate, authorize("CUSTOMER"));
 router.get(
     "/chat/messages",
     validate(chatMessageListQuerySchema, "query"),
-    controller.getMemberMessages
+    chatController.getMemberMessages
 );
 
 // POST /api/member/chat/messages
 router.post(
     "/chat/messages",
     validate(chatMessageBodySchema),
-    controller.sendMemberMessage
+    chatController.sendMemberMessage
+);
+
+// ==========================================
+// ADDRESS BOOK
+// ==========================================
+
+// GET /api/member/addresses
+router.get(
+    "/addresses",
+    addressController.getMyAddresses
+);
+
+// POST /api/member/addresses
+router.post(
+    "/addresses",
+    validate(createAddressSchema),
+    addressController.createMyAddress
+);
+
+// PATCH /api/member/addresses/:addressId/default
+router.patch(
+    "/addresses/:addressId/default",
+    validate(addressIdParamsSchema, "params"),
+    addressController.setMyDefaultAddress
+);
+
+// PATCH /api/member/addresses/:addressId
+router.patch(
+    "/addresses/:addressId",
+    validate(addressIdParamsSchema, "params"),
+    validate(updateAddressSchema),
+    addressController.updateMyAddress
+);
+
+// DELETE /api/member/addresses/:addressId
+router.delete(
+    "/addresses/:addressId",
+    validate(addressIdParamsSchema, "params"),
+    addressController.deleteMyAddress
 );
 
 module.exports = router;

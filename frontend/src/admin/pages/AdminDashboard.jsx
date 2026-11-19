@@ -7,7 +7,6 @@ import OrderManagementPage from "./orders/OrderManagementPage.jsx";
 import VoucherManagementPage from "./vouchers/VoucherManagementPage.jsx";
 import MemberManagementPage from "./members/MemberManagementPage.jsx";
 import AdminChatPage from "./chat/AdminChatPage.jsx";
-import ReturnManagementPage from "./returns/ReturnManagementPage.jsx";
 
 const navigation = [
   {
@@ -29,7 +28,6 @@ const navigation = [
     label: "GIAO DỊCH",
     items: [
       { title: "Đơn hàng", path: "/admin/orders", icon: "▧" },
-      { title: "Đổi trả", path: "/admin/returns", icon: "↔" },
       { title: "Voucher", path: "/admin/vouchers", icon: "％" },
     ],
   },
@@ -255,12 +253,6 @@ export default function AdminDashboard({
             />
           ) : currentPath === "/admin/orders" ? (
             <OrderManagementPage
-              accessToken={accessToken}
-              onSessionUpdate={onSessionUpdate}
-              onSessionExpired={onLogout}
-            />
-          ) : currentPath === "/admin/returns" ? (
-            <ReturnManagementPage
               accessToken={accessToken}
               onSessionUpdate={onSessionUpdate}
               onSessionExpired={onLogout}

@@ -1,98 +1,46 @@
-
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./storefront.css";
 
-const products = [
-  {
-    id: "SP001",
-    name: "Vợt cầu lông Yonex Astrox 99 Pro",
-    brand: "YONEX",
-    category: "Vợt cầu lông",
-    price: 3890000,
-    oldPrice: 4290000,
-    rating: 4.9,
-    reviews: 128,
-    badge: "BÁN CHẠY",
-    icon: "🏸",
-    tone: "lime",
-  },
-  {
-    id: "SP002",
-    name: "Vợt cầu lông Victor Thruster K",
-    brand: "VICTOR",
-    category: "Vợt cầu lông",
-    price: 2650000,
-    oldPrice: 2990000,
-    rating: 4.8,
-    reviews: 86,
-    badge: "GIẢM GIÁ",
-    icon: "🏸",
-    tone: "blue",
-  },
-  {
-    id: "SP003",
-    name: "Giày cầu lông Yonex Power Cushion",
-    brand: "YONEX",
-    category: "Giày cầu lông",
-    price: 1890000,
-    oldPrice: 2190000,
-    rating: 4.9,
-    reviews: 74,
-    badge: "NỔI BẬT",
-    icon: "👟",
-    tone: "orange",
-  },
-  {
-    id: "SP004",
-    name: "Áo thể thao QMD Performance",
-    brand: "QMD SPORT",
-    category: "Quần áo",
-    price: 350000,
-    oldPrice: null,
-    rating: 4.7,
-    reviews: 42,
-    badge: "",
-    icon: "👕",
-    tone: "purple",
-  },
-  {
-    id: "SP005",
-    name: "Balo thể thao Yonex Pro Series",
-    brand: "YONEX",
-    category: "Phụ kiện",
-    price: 1250000,
-    oldPrice: 1450000,
-    rating: 4.8,
-    reviews: 53,
-    badge: "",
-    icon: "🎒",
-    tone: "pink",
-  },
-  {
-    id: "SP006",
-    name: "Ống cầu lông Yonex AS-30",
-    brand: "YONEX",
-    category: "Phụ kiện",
-    price: 720000,
-    oldPrice: null,
-    rating: 4.9,
-    reviews: 102,
-    badge: "PHỔ BIẾN",
-    icon: "🏸",
-    tone: "cyan",
-  },
-];
+import {
+  getCustomerCatalogProducts,
+  getCustomerCatalogCategories,
+} from "../../services/catalog.service";
 
-const categories = [
-  { name: "Tất cả", icon: "✦" },
-  { name: "Vợt cầu lông", icon: "🏸" },
-  { name: "Giày cầu lông", icon: "👟" },
-  { name: "Quần áo", icon: "👕" },
-  { name: "Phụ kiện", icon: "🎒" },
-];
+const ALL_CATEGORY = { id: null, name: "Tất cả", icon: "✦" };
+
+function getCategoryIcon(name = "") {
+  const value = name.toLowerCase();
+  if (value.includes("vợt") || value.includes("cầu")) return "🏸";
+  if (value.includes("giày")) return "👟";
+  if (value.includes("áo") || value.includes("quần") || value.includes("trang phục")) return "👕";
+  if (value.includes("phụ kiện")) return "🎒";
+  return "✦";
+}
+
+function getProductImage(product) {
+  const productImages = Array.isArray(product.images) ? product.images : [];
+  const variantImages = (product.variants || []).flatMap(
+    (variant) => variant.images || []
+  );
+  const images = [...productImages, ...variantImages];
+  return images.find((image) => image.isPrimary)?.imageUrl || images[0]?.imageUrl || "";
+}
+
+function mapCatalogProduct(product) {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  return {
+    ...product,
+    brandName: product.brand?.name || "QMD SPORT",
+    categoryName: product.category?.name || "Khác",
+    imageUrl: getProductImage(product),
+    inStock: variants.some((variant) => variant.inStock),
+    tone: "lime",
+    icon: getCategoryIcon(product.category?.name),
+  };
+}
 
 const formatPrice = (value) =>
-  new Intl.NumberFormat("vi-VN").format(value) + "₫";
+  new Intl.NumberFormat("vi-VN").format(Number(value || 0)) + "₫";
 
 export default function StorefrontPage({
   user,
@@ -100,20 +48,66 @@ export default function StorefrontPage({
   onNavigate,
   onRequireLogin,
   onAddToCart,
+  onOpenSupport,
 }) {
   const [activeCategory, setActiveCategory] = useState("Tất cả");
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([ALL_CATEGORY]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
   const [search, setSearch] = useState("");
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    {
-      id: 1,
-      sender: "admin",
-      content:
-        "Xin chào! QMD Sport có thể hỗ trợ bạn về sản phẩm, đơn hàng và các vấn đề khác. Bạn cần giúp gì?",
-      time: "09:00",
-    },
-  ]);
-  const [chatInput, setChatInput] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCatalog() {
+      setCatalogLoading(true);
+      setCatalogError("");
+
+      try {
+        const [productsResult, categoriesResult] = await Promise.all([
+          getCustomerCatalogProducts({
+            page: 1,
+            limit: 50,
+            sortBy: "createdAt",
+            sortOrder: "desc",
+          }),
+          getCustomerCatalogCategories(),
+        ]);
+
+        if (cancelled) return;
+
+        const productItems = Array.isArray(productsResult?.data)
+          ? productsResult.data
+          : [];
+        const categoryItems = Array.isArray(categoriesResult?.data)
+          ? categoriesResult.data
+          : [];
+
+        setProducts(productItems.map(mapCatalogProduct));
+        setCategories([
+          ALL_CATEGORY,
+          ...categoryItems.map((category) => ({
+            ...category,
+            icon: getCategoryIcon(category.name),
+          })),
+        ]);
+      } catch (error) {
+        if (!cancelled) {
+          setCatalogError(
+            error.message || "Không thể tải danh mục sản phẩm."
+          );
+        }
+      } finally {
+        if (!cancelled) setCatalogLoading(false);
+      }
+    }
+
+    loadCatalog();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filteredProducts = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -121,16 +115,16 @@ export default function StorefrontPage({
     return products.filter((product) => {
       const matchesCategory =
         activeCategory === "Tất cả" ||
-        product.category === activeCategory;
+        product.categoryName === activeCategory;
 
       const matchesSearch =
         !keyword ||
         product.name.toLowerCase().includes(keyword) ||
-        product.brand.toLowerCase().includes(keyword);
+        product.brandName.toLowerCase().includes(keyword);
 
       return matchesCategory && matchesSearch;
     });
-  }, [activeCategory, search]);
+  }, [products, activeCategory, search]);
 
   function handleProductClick(product) {
     onNavigate?.(`/products/${product.id}`);
@@ -140,34 +134,6 @@ export default function StorefrontPage({
     onAddToCart?.(product);
   }
 
-  function handleChatClick() {
-    if (!user) {
-      onRequireLogin?.();
-      return;
-    }
-
-    setChatOpen((current) => !current);
-  }
-
-  function handleSendChat(event) {
-    event.preventDefault();
-
-    const message = chatInput.trim();
-    if (!message) return;
-
-    const newMessage = {
-      id: Date.now(),
-      sender: "customer",
-      content: message,
-      time: new Intl.DateTimeFormat("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date()),
-    };
-
-    setChatMessages((current) => [...current, newMessage]);
-    setChatInput("");
-  }
 
   return (
     <div className="storefront">
@@ -437,8 +403,21 @@ export default function StorefrontPage({
             </label>
           </div>
 
+          {catalogError && (
+            <div className="store-no-products" role="alert">
+              <h3>Không thể tải sản phẩm</h3>
+              <p>{catalogError}</p>
+            </div>
+          )}
+
+          {catalogLoading && (
+            <div className="store-no-products" role="status">
+              <p>Đang tải sản phẩm...</p>
+            </div>
+          )}
+
           <div className="store-product-grid">
-            {filteredProducts.map((product) => (
+            {!catalogLoading && filteredProducts.map((product) => (
               <article className="store-product-card" key={product.id}>
                 <button
                   className="store-product-visual-button"
@@ -446,23 +425,33 @@ export default function StorefrontPage({
                   aria-label={`Xem ${product.name}`}
                 >
                   <div className={`store-product-visual ${product.tone}`}>
-                    {product.badge && (
-                      <span className="store-product-badge">
-                        {product.badge}
-                      </span>
+                    {product.isFeatured && (
+                      <span className="store-product-badge">NỔI BẬT</span>
                     )}
-                    <span className="store-product-art">
-                      {product.icon}
-                    </span>
+                    {product.imageUrl ? (
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        loading="lazy"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "contain",
+                          padding: 18,
+                        }}
+                      />
+                    ) : (
+                      <span className="store-product-art">{product.icon}</span>
+                    )}
                     <span className="store-product-art-label">
-                      {product.brand}
+                      {product.brandName}
                     </span>
                   </div>
                 </button>
 
                 <div className="store-product-info">
                   <span className="store-product-brand">
-                    {product.brand}
+                    {product.brandName}
                   </span>
                   <button
                     className="store-product-name"
@@ -472,30 +461,28 @@ export default function StorefrontPage({
                   </button>
 
                   <div className="store-product-rating">
-                    <span>★</span>
-                    {product.rating}
-                    <small>({product.reviews} đánh giá)</small>
+                    <small>{product.categoryName}</small>
+                    <small>{product.inStock ? "Còn hàng" : "Tạm hết hàng"}</small>
                   </div>
 
                   <div className="store-product-price">
                     <strong>{formatPrice(product.price)}</strong>
-                    {product.oldPrice && (
-                      <del>{formatPrice(product.oldPrice)}</del>
-                    )}
                   </div>
 
                   <button
                     className="store-add-cart-button"
                     onClick={() => handleAddToCart(product)}
+                    disabled={!product.inStock}
+                    title={!product.inStock ? "Sản phẩm hiện tạm hết hàng" : "Thêm vào giỏ hàng"}
                   >
-                    + THÊM VÀO GIỎ
+                    {product.inStock ? "+ THÊM VÀO GIỎ" : "TẠM HẾT HÀNG"}
                   </button>
                 </div>
               </article>
             ))}
           </div>
 
-          {filteredProducts.length === 0 && (
+          {!catalogLoading && !catalogError && filteredProducts.length === 0 && (
             <div className="store-no-products">
               <span>⌕</span>
               <h3>Không tìm thấy sản phẩm</h3>
@@ -572,7 +559,7 @@ export default function StorefrontPage({
 
           <div>
             <strong>Hỗ trợ</strong>
-            <button onClick={handleChatClick}>
+            <button onClick={() => onOpenSupport?.()}>
               Chat với chúng tôi
             </button>
             <span>Hỗ trợ khách hàng</span>
@@ -583,70 +570,8 @@ export default function StorefrontPage({
           <span>© 2026 QMD SPORT. ALL RIGHTS RESERVED.</span>
           <span>PLAY YOUR GAME.</span>
         </div>
-      </footer>
-
-      <button
-        className={`store-chat-fab ${chatOpen ? "active" : ""}`}
-        onClick={handleChatClick}
-        aria-label="Chat hỗ trợ khách hàng"
-        title="Chat hỗ trợ"
-      >
-        {chatOpen ? "×" : "✉"}
-        {!chatOpen && <span>Hỗ trợ</span>}
-      </button>
-
-      {chatOpen && (
-        <section className="store-chat-panel">
-          <header className="store-chat-panel-header">
-            <div className="store-chat-panel-avatar">Q</div>
-            <div>
-              <strong>QMD SPORT SUPPORT</strong>
-              <small><span /> Đội ngũ hỗ trợ</small>
-            </div>
-            <button
-              onClick={() => setChatOpen(false)}
-              aria-label="Đóng chat"
-            >
-              ×
-            </button>
-          </header>
-
-          <div className="store-chat-panel-messages">
-            <div className="store-chat-date">HỘI THOẠI HỖ TRỢ</div>
-
-            {chatMessages.map((message) => (
-              <div
-                key={message.id}
-                className={`store-chat-message ${
-                  message.sender === "customer" ? "mine" : "theirs"
-                }`}
-              >
-                <p>{message.content}</p>
-                <time>{message.time}</time>
-              </div>
-            ))}
-          </div>
-
-          <form
-            className="store-chat-panel-compose"
-            onSubmit={handleSendChat}
-          >
-            <input
-              value={chatInput}
-              onChange={(event) => setChatInput(event.target.value)}
-              placeholder="Nhập tin nhắn..."
-              maxLength={2000}
-            />
-            <button type="submit" disabled={!chatInput.trim()}>
-              ↗
-            </button>
-          </form>
-
-          <div className="store-chat-demo-note">
-            Giao diện mô phỏng — chưa kết nối hệ thống hỗ trợ.
-          </div>
-        </section>
-      )}
-    </div>
+    </footer>
+  </div>
   );
 }
+

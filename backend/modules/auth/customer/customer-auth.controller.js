@@ -11,6 +11,10 @@ const {
 } = require("./customer-auth.service");
 
 const {
+    changeCustomerPassword,
+} = require("./customer-password.service");
+
+const {
     rotateRefreshToken,
     revokeRefreshToken,
 } = require("../shared/refresh-token.service");
@@ -244,6 +248,20 @@ async function resetPasswordController(req, res) {
     });
 }
 
+async function changePasswordController(req, res) {
+    await changeCustomerPassword(req.user.id, {
+        currentPassword: req.body.currentPassword,
+        newPassword: req.body.newPassword,
+    });
+
+    refreshCookie.clearRefreshCookie(res);
+
+    return res.status(200).json({
+        success: true,
+        message: "Password changed successfully. Please log in again.",
+    });
+}
+
 module.exports = {
     register,
     verifyEmail,
@@ -253,4 +271,5 @@ module.exports = {
     logout,
     forgotPassword,
     resetPasswordController,
+    changePasswordController,
 };

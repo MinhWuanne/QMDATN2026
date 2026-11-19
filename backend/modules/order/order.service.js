@@ -27,11 +27,17 @@
  * CANCELLED is terminal.
  *
  * RETURN / EXCHANGE INTEGRATION
- * - Eligible orders require PAID payment and delivery within
- *   the agreed 3-day request window.
+ * - Return/Exchange business logic is implemented in return.service.js.
+ * - Eligible orders require paid payment and delivery within 3 days.
  * - Refund amount is based on OrderItem.discountAmount.
  * - Replacement orders use INTERNAL_EXCHANGE / NOT_REQUIRED.
- * - Do not implement Return/Exchange by reusing normal cancellation.
+ * - Replacement orders reserve stock at creation and deduct it
+ *   when Admin confirms the replacement order.
+ * - A return/exchange request is completed when its replacement
+ *   order reaches DELIVERED.
+ * - Cancelling an eligible replacement order returns its request
+ *   to WAITING_FOR_STOCK.
+ * - Never process Return/Exchange through normal order cancellation.
  * 
  * RETURN / EXCHANGE STATUS
  * - Prisma schema and database migration are prepared.
@@ -594,7 +600,6 @@ async function restoreSoldInventory(tx, order, actorId) {
     }
 }
 
-
 // ==========================================
 // ORDER HISTORY
 // ==========================================
@@ -612,6 +617,144 @@ async function createOrderHistory(
             note: note || null,
         },
     });
+}
+
+// ==========================================
+// RETURN / EXCHANGE INTEGRATION
+// ==========================================
+
+// Complete an exchange request when its replacement order is delivered.
+async function completeReplacementReturn(tx, order, adminId, now) {
+    const request = await tx.returnRequest.findUnique({
+        where: {
+            replacementOrderId: order.id,
+        },
+        include: {
+            items: true,
+        },
+    });
+
+    if (!request) {
+        throwError("EXCHANGE_RETURN_REQUEST_NOT_FOUND", 409);
+    }
+
+    if (
+        request.resolution !== "EXCHANGE" ||
+        request.status !== "REPLACEMENT_PENDING" ||
+        request.items.length !== 1
+    ) {
+        throwError("EXCHANGE_RETURN_REQUEST_STATE_INVALID", 409);
+    }
+
+    const returnItem = request.items[0];
+
+    if (returnItem.status !== "REPLACEMENT_PENDING") {
+        throwError("EXCHANGE_RETURN_ITEM_STATE_INVALID", 409);
+    }
+
+    const itemResult = await tx.returnItem.updateMany({
+        where: {
+            id: returnItem.id,
+            returnRequestId: request.id,
+            status: "REPLACEMENT_PENDING",
+        },
+        data: {
+            status: "COMPLETED",
+        },
+    });
+
+    if (itemResult.count !== 1) {
+        throwError("EXCHANGE_RETURN_ITEM_CONCURRENT_UPDATE", 409);
+    }
+
+    const requestResult = await tx.returnRequest.updateMany({
+        where: {
+            id: request.id,
+            replacementOrderId: order.id,
+            resolution: "EXCHANGE",
+            status: "REPLACEMENT_PENDING",
+        },
+        data: {
+            status: "COMPLETED",
+            processedById: adminId,
+            processedAt: now,
+            adminNote: "Đơn hàng thay thế đã được giao thành công",
+        },
+    });
+
+    if (requestResult.count !== 1) {
+        throwError("EXCHANGE_RETURN_REQUEST_CONCURRENT_UPDATE", 409);
+    }
+}
+
+// Return an exchange request to WAITING_FOR_STOCK
+// when its replacement order is cancelled before shipping.
+async function resetCancelledReplacementReturn(
+    tx,
+    order,
+    adminId
+) {
+    const request = await tx.returnRequest.findUnique({
+        where: {
+            replacementOrderId: order.id,
+        },
+        include: {
+            items: true,
+        },
+    });
+
+    if (!request) {
+        throwError("EXCHANGE_RETURN_REQUEST_NOT_FOUND", 409);
+    }
+
+    if (
+        request.resolution !== "EXCHANGE" ||
+        request.status !== "REPLACEMENT_PENDING" ||
+        request.items.length !== 1
+    ) {
+        throwError("EXCHANGE_RETURN_REQUEST_STATE_INVALID", 409);
+    }
+
+    const returnItem = request.items[0];
+
+    if (returnItem.status !== "REPLACEMENT_PENDING") {
+        throwError("EXCHANGE_RETURN_ITEM_STATE_INVALID", 409);
+    }
+
+    const itemResult = await tx.returnItem.updateMany({
+        where: {
+            id: returnItem.id,
+            returnRequestId: request.id,
+            status: "REPLACEMENT_PENDING",
+        },
+        data: {
+            status: "WAITING_FOR_STOCK",
+        },
+    });
+
+    if (itemResult.count !== 1) {
+        throwError("EXCHANGE_RETURN_ITEM_CONCURRENT_UPDATE", 409);
+    }
+
+    const requestResult = await tx.returnRequest.updateMany({
+        where: {
+            id: request.id,
+            replacementOrderId: order.id,
+            resolution: "EXCHANGE",
+            status: "REPLACEMENT_PENDING",
+        },
+        data: {
+            status: "WAITING_FOR_STOCK",
+            replacementOrderId: null,
+            processedById: adminId,
+            processedAt: null,
+            adminNote: "Đơn hàng thay thế đã bị hủy; yêu cầu đổi hàng đang chờ tạo đơn thay thế mới",
+        },
+    });
+
+    if (requestResult.count !== 1) {
+        throwError("EXCHANGE_RETURN_REQUEST_CONCURRENT_UPDATE", 409);
+    }
 }
 
 // ==========================================
@@ -1005,7 +1148,7 @@ async function expirePendingVnpayOrders() {
                         where: {
                             orderId: payment.order.id,
                         },
-                    }); 
+                    });
 
                     return true;
                 },
@@ -1433,7 +1576,6 @@ async function markOrderPaid(orderId, adminId, note = null) {
 // ADMIN: UPDATE ORDER STATUS
 // ==========================================
 
-
 async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
     assertUuid(orderId, "orderId");
     assertUuid(adminId, "adminId");
@@ -1466,13 +1608,12 @@ async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
                     throwError("PAYMENT_METHOD_MISMATCH", 409);
                 }
 
-                // VNPAY orders must be paid before any status progression.
+                // VNPAY orders must be paid before status progression.
                 if (order.paymentMethod === "VNPAY") {
                     if (order.payment.status !== "PAID") {
                         throwError("ORDER_PAYMENT_NOT_PAID", 409);
                     }
                 } else if (order.paymentMethod === "COD") {
-                    // COD can only be completed after Admin confirms collection.
                     if (
                         newStatus === "COMPLETED" &&
                         order.payment.status !== "PAID"
@@ -1480,7 +1621,6 @@ async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
                         throwError("COD_PAYMENT_NOT_COLLECTED", 409);
                     }
 
-                    // Before completion, COD payment must remain pending.
                     if (
                         newStatus !== "COMPLETED" &&
                         order.payment.status !== "PENDING"
@@ -1489,7 +1629,10 @@ async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
                     }
                 } else if (order.paymentMethod === "INTERNAL_EXCHANGE") {
                     if (order.payment.status !== "NOT_REQUIRED") {
-                        throwError("INTERNAL_EXCHANGE_PAYMENT_STATE_INVALID", 409);
+                        throwError(
+                            "INTERNAL_EXCHANGE_PAYMENT_STATE_INVALID",
+                            409
+                        );
                     }
                 } else {
                     throwError("UNSUPPORTED_PAYMENT_METHOD", 409);
@@ -1504,6 +1647,7 @@ async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
 
                 const now = new Date();
 
+                // Update order using compare-and-set.
                 const updateResult = await tx.order.updateMany({
                     where: {
                         id: order.id,
@@ -1542,6 +1686,20 @@ async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
                     note: note || null,
                 });
 
+                // An exchange request is completed when its replacement
+                // order reaches DELIVERED, not COMPLETED.
+                if (
+                    order.paymentMethod === "INTERNAL_EXCHANGE" &&
+                    newStatus === "DELIVERED"
+                ) {
+                    await completeReplacementReturn(
+                        tx,
+                        order,
+                        adminId,
+                        now
+                    );
+                }
+
                 return tx.order.findUnique({
                     where: { id: order.id },
                     include: ORDER_INCLUDE,
@@ -1556,10 +1714,10 @@ async function updateOrderStatus(orderId, newStatus, adminId, note = null) {
     }
 }
 
-
 // ==========================================
 // ADMIN: CANCEL ORDER
-// Before SHIPPING only.
+// Normal orders: before successful delivery.
+// Replacement orders: before SHIPPING.
 // Paid payment remains PAID until refund succeeds.
 // ==========================================
 
@@ -1582,18 +1740,60 @@ async function cancelAdminOrder(orderId, adminId, note = null) {
                     throwError("ORDER_NOT_FOUND", 404);
                 }
 
+                if (!order.payment) {
+                    throwError("PAYMENT_NOT_FOUND", 404);
+                }
+
+                if (order.payment.method !== order.paymentMethod) {
+                    throwError("PAYMENT_METHOD_MISMATCH", 409);
+                }
+
+                const isReplacementOrder =
+                    order.paymentMethod === "INTERNAL_EXCHANGE";
+
+                // Replacement orders cannot be cancelled after shipping.
+                // Their physical goods may already be in transit.
+                if (
+                    isReplacementOrder &&
+                    order.status === "SHIPPING"
+                ) {
+                    throwError(
+                        "REPLACEMENT_ORDER_ALREADY_SHIPPED",
+                        409
+                    );
+                }
+
                 if (
                     !ADMIN_CANCELLABLE_STATUSES.includes(order.status)
                 ) {
                     throwError("ORDER_CANNOT_BE_CANCELLED", 409);
                 }
 
-                // Paid orders require a successful refund before cancellation.
-                if (order.payment?.status === "PAID") {
-                    throwError("PAID_ORDER_REQUIRES_REFUND", 409);
+                // Validate payment state before changing anything.
+                if (isReplacementOrder) {
+                    if (order.payment.status !== "NOT_REQUIRED") {
+                        throwError(
+                            "INTERNAL_EXCHANGE_PAYMENT_STATE_INVALID",
+                            409
+                        );
+                    }
+                } else {
+                    if (order.payment.status === "PAID") {
+                        throwError("PAID_ORDER_REQUIRES_REFUND", 409);
+                    }
+
+                    if (
+                        !["PENDING", "FAILED"].includes(
+                            order.payment.status
+                        )
+                    ) {
+                        throwError("PAYMENT_CANNOT_BE_CANCELLED", 409);
+                    }
                 }
 
-                // Step 1: Update order status using compare-and-set (CAS).
+                const now = new Date();
+
+                // Step 1: Cancel order using compare-and-set.
                 const updateResult = await tx.order.updateMany({
                     where: {
                         id: order.id,
@@ -1601,7 +1801,7 @@ async function cancelAdminOrder(orderId, adminId, note = null) {
                     },
                     data: {
                         status: "CANCELLED",
-                        cancelledAt: new Date(),
+                        cancelledAt: now,
                     },
                 });
 
@@ -1633,38 +1833,49 @@ async function cancelAdminOrder(orderId, adminId, note = null) {
 
                 // Step 4: Remove voucher usage.
                 await tx.voucherUsage.deleteMany({
-                    where: { orderId: order.id },
-                });
-
-                // Step 5: Cancel unpaid payment.
-                if (
-                    !order.payment ||
-                    !["PENDING", "FAILED"].includes(order.payment.status)
-                ) {
-                    throwError("PAYMENT_CANNOT_BE_CANCELLED", 409);
-                }
-
-                const paymentUpdateResult = await tx.payment.updateMany({
                     where: {
-                        id: order.payment.id,
-                        status: order.payment.status,
-                    },
-                    data: {
-                        status: "CANCELLED",
+                        orderId: order.id,
                     },
                 });
 
-                if (paymentUpdateResult.count !== 1) {
-                    throwError("PAYMENT_CONCURRENT_UPDATE", 409);
+                if (isReplacementOrder) {
+                    // Step 5A: Return the exchange request to stock waiting.
+                    await resetCancelledReplacementReturn(
+                        tx,
+                        order,
+                        adminId
+                    );
+                } else {
+                    // Step 5B: Cancel unpaid normal payment.
+                    const paymentUpdateResult =
+                        await tx.payment.updateMany({
+                            where: {
+                                id: order.payment.id,
+                                status: order.payment.status,
+                            },
+                            data: {
+                                status: "CANCELLED",
+                            },
+                        });
+
+                    if (paymentUpdateResult.count !== 1) {
+                        throwError(
+                            "PAYMENT_CONCURRENT_UPDATE",
+                            409
+                        );
+                    }
                 }
 
                 return tx.order.findUnique({
-                    where: { id: order.id },
+                    where: {
+                        id: order.id,
+                    },
                     include: ORDER_INCLUDE,
                 });
             },
             {
-                isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+                isolationLevel:
+                    Prisma.TransactionIsolationLevel.Serializable,
             }
         );
     } catch (error) {

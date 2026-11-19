@@ -13,6 +13,9 @@ const adminAuthRoutes = require("./routes/admin-auth.routes");
 
 const orderRoutes = require("./modules/order/order.routes");
 const returnRoutes = require("./modules/return/return.routes");
+const memberProfileRequestRoutes = require(
+  "./modules/member-profile-request/member-profile-request.routes"
+);
 const paymentRoutes = require("./modules/payment/payment.routes");
 const errorHandler = require("./middlewares/error.middleware");
 
@@ -26,6 +29,10 @@ const adminMemberRoutes = require("./routes/admin/member.routes");
 
 const memberRoutes = require("./routes/member.routes");
 const adminChatRoutes = require("./routes/admin/chat.routes");
+
+const customerCatalogRoutes = require(
+  "./modules/catalog/customer/customer-catalog.routes"
+);
 
 // Render runs behind a reverse proxy.
 if (process.env.NODE_ENV === "production") {
@@ -107,13 +114,22 @@ app.get("/api/db-health", async (req, res) => {
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/admin/auth", authLimiter, adminAuthRoutes);
 app.use("/api/admin/catalog", adminCatalogRoutes);
+app.use("/api/catalog", customerCatalogRoutes);
 
 app.use("/api/orders", orderRoutes.customerOrderRouter);
 app.use("/api/admin/orders", orderRoutes.adminOrderRouter);
 app.use("/api/payments", paymentRoutes);
 
 app.use("/api/returns", returnRoutes.customerReturnRouter);
+app.use(
+  "/api/member/profile-requests",
+  memberProfileRequestRoutes.customerProfileRequestRouter
+);
 app.use("/api/admin/returns", returnRoutes.adminReturnRouter);
+app.use(
+  "/api/admin/member-profile-requests",
+  memberProfileRequestRoutes.adminProfileRequestRouter
+);
 
 app.use("/api/admin/vouchers", adminVoucherRoutes);
 app.use("/api/admin/members", adminMemberRoutes);

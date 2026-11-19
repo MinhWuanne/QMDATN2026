@@ -1,3 +1,4 @@
+
 const express = require("express");
 const { authenticate, authorize } = require("../../middlewares/auth.middleware");
 const validate = require("../../middlewares/validate.middleware");
@@ -12,11 +13,19 @@ customerRouter.post(
     validate(validator.createReturnRequestSchema),
     controller.createMyReturnRequest
 );
+
 customerRouter.get(
     "/",
     validate(validator.myReturnListQuerySchema, "query"),
     controller.listMyReturnRequests
 );
+
+// Phải đặt trước /:returnRequestId
+customerRouter.get(
+    "/eligible-orders",
+    controller.listMyEligibleOrders
+);
+
 customerRouter.get(
     "/:returnRequestId",
     validate(validator.returnIdParamsSchema, "params"),
@@ -31,35 +40,48 @@ adminRouter.get(
     validate(validator.adminReturnListQuerySchema, "query"),
     controller.listAdminReturnRequests
 );
+
 adminRouter.get(
     "/:returnRequestId",
     validate(validator.returnIdParamsSchema, "params"),
     controller.getAdminReturnRequest
 );
+
 adminRouter.post(
     "/:returnRequestId/approve",
     validate(validator.returnIdParamsSchema, "params"),
     validate(validator.adminNoteSchema),
     controller.approveReturnRequest
 );
+
 adminRouter.post(
     "/:returnRequestId/reject",
     validate(validator.returnIdParamsSchema, "params"),
     validate(validator.rejectReturnSchema),
     controller.rejectReturnRequest
 );
+
 adminRouter.post(
     "/:returnRequestId/receive",
     validate(validator.returnIdParamsSchema, "params"),
     validate(validator.receiveReturnSchema),
     controller.receiveReturnedItem
 );
+
+adminRouter.post(
+    "/:returnRequestId/accept",
+    validate(validator.returnIdParamsSchema, "params"),
+    validate(validator.acceptReturnSchema, "body"),
+    controller.acceptReturnedItem
+);
+
 adminRouter.post(
     "/:returnRequestId/retry-exchange",
     validate(validator.returnIdParamsSchema, "params"),
     validate(validator.adminNoteSchema),
     controller.retryExchangeWhenStockAvailable
 );
+
 adminRouter.post(
     "/:returnRequestId/confirm-refund",
     validate(validator.returnIdParamsSchema, "params"),

@@ -20,6 +20,23 @@ async function createMyReturnRequest(req, res, next) {
     }
 }
 
+async function listMyEligibleOrders(req, res, next) {
+    try {
+        const data = await returnService.listMyEligibleOrders(
+            req.user.id
+        );
+
+        return respond(
+            res,
+            200,
+            "ELIGIBLE_ORDERS_RETRIEVED",
+            data
+        );
+    } catch (error) {
+        next(error);
+    }
+}
+
 async function listMyReturnRequests(req, res, next) {
     try {
         const data = await returnService.listMyReturnRequests(
@@ -96,10 +113,34 @@ async function receiveReturnedItem(req, res, next) {
     try {
         const data = await returnService.receiveReturnedItem(
             req.params.returnRequestId,
+            req.user.id
+        );
+
+        return respond(
+            res,
+            200,
+            "Đã nhận hàng và chuyển sang chờ kiểm tra",
+            data
+        );
+    } catch (error) {
+        next(error);
+    }
+}
+
+async function acceptReturnedItem(req, res, next) {
+    try {
+        const data = await returnService.acceptReturnedItem(
+            req.params.returnRequestId,
             req.user.id,
             req.body.conditionNote
         );
-        return respond(res, 200, "RETURN_ITEM_RECEIVED", data);
+
+        return respond(
+            res,
+            200,
+            "Đã xác nhận hàng hoàn đạt yêu cầu kiểm tra",
+            data
+        );
     } catch (error) {
         next(error);
     }
@@ -109,9 +150,16 @@ async function retryExchangeWhenStockAvailable(req, res, next) {
     try {
         const data = await returnService.retryExchangeWhenStockAvailable(
             req.params.returnRequestId,
-            req.user.id
+            req.user.id,
+            req.body.adminNote
         );
-        return respond(res, 200, "EXCHANGE_REPLACEMENT_CREATED", data);
+
+        return respond(
+            res,
+            200,
+            "Đã xử lý yêu cầu tạo đơn thay thế",
+            data
+        );
     } catch (error) {
         next(error);
     }
@@ -139,6 +187,8 @@ module.exports = {
     approveReturnRequest,
     rejectReturnRequest,
     receiveReturnedItem,
+    acceptReturnedItem,
     retryExchangeWhenStockAvailable,
     confirmManualRefund,
+    listMyEligibleOrders,
 };

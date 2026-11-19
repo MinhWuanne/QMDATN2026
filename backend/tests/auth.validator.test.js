@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
   registerSchema,
   customerLoginSchema,
+  changePasswordSchema,
 } = require("../modules/auth/customer/customer-auth.validator");
 
 const {
@@ -180,6 +181,71 @@ test("Admin từ chối email không hợp lệ hoặc thiếu mật khẩu", ()
   const result = adminLoginSchema.safeParse({
     email: "invalid-email",
     password: "",
+  });
+
+  assert.equal(result.success, false);
+});
+
+// CUSTOMER CHANGE PASSWORD
+
+test("Customer đổi mật khẩu với dữ liệu hợp lệ", () => {
+  const result = changePasswordSchema.safeParse({
+    currentPassword: "oldPassword123",
+    newPassword: "newPassword123",
+    confirmPassword: "newPassword123",
+  });
+
+  assert.equal(result.success, true);
+});
+
+test("Từ chối mật khẩu hiện tại bị bỏ trống", () => {
+  const result = changePasswordSchema.safeParse({
+    currentPassword: "",
+    newPassword: "newPassword123",
+    confirmPassword: "newPassword123",
+  });
+
+  assert.equal(result.success, false);
+});
+
+test("Từ chối mật khẩu mới dưới 8 ký tự", () => {
+  const result = changePasswordSchema.safeParse({
+    currentPassword: "oldPassword123",
+    newPassword: "1234567",
+    confirmPassword: "1234567",
+  });
+
+  assert.equal(result.success, false);
+});
+
+test("Từ chối khi mật khẩu xác nhận không khớp", () => {
+  const result = changePasswordSchema.safeParse({
+    currentPassword: "oldPassword123",
+    newPassword: "newPassword123",
+    confirmPassword: "anotherPassword123",
+  });
+
+  assert.equal(result.success, false);
+});
+
+test("Không tự ý thay đổi khoảng trắng trong mật khẩu", () => {
+  const result = changePasswordSchema.safeParse({
+    currentPassword: " oldPassword123 ",
+    newPassword: " newPassword123 ",
+    confirmPassword: " newPassword123 ",
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.currentPassword, " oldPassword123 ");
+  assert.equal(result.data.newPassword, " newPassword123 ");
+});
+
+test("Từ chối dữ liệu có field không được khai báo", () => {
+  const result = changePasswordSchema.safeParse({
+    currentPassword: "oldPassword123",
+    newPassword: "newPassword123",
+    confirmPassword: "newPassword123",
+    email: "test@example.com",
   });
 
   assert.equal(result.success, false);

@@ -9,6 +9,7 @@ import ForgotPassword from "./pages/auth/ForgotPassword.jsx";
 import ResetPassword from "./pages/auth/ResetPassword.jsx";
 import Dashboard from "./pages/auth/Dashboard.jsx";
 import StorefrontPage from "./pages/storefront/StorefrontPage.jsx";
+import CustomerSupportWidget from "./components/support/CustomerSupportWidget.jsx";
 
 import { apiRequest } from "./services/auth.service.js";
 
@@ -35,6 +36,7 @@ function CustomerApp() {
     window.location.pathname.replace(/\/+$/, "") || "/"
   );
   const [cartCount, setCartCount] = useState(0);
+  const [supportOpen, setSupportOpen] = useState(false);
 
   // Đồng bộ đường dẫn khi người dùng bấm Back / Forward.
   useEffect(() => {
@@ -116,6 +118,7 @@ function CustomerApp() {
   }, []);
 
   const handleSessionExpired = useCallback(() => {
+    setSupportOpen(false);
     setSession(null);
     navigate("/login");
   }, [navigate]);
@@ -128,6 +131,7 @@ function CustomerApp() {
 
     try {
       await apiRequest("/logout", { method: "POST" });
+      setSupportOpen(false);
       setSession(null);
       navigate("/login");
     } catch (err) {
@@ -216,30 +220,43 @@ function CustomerApp() {
     }
   }
 
-  // Khu vực tài khoản dành cho Customer.
-  if (path.startsWith("/account")) {
-    return (
-      <Dashboard
-        user={session.user}
-        accessToken={session.accessToken}
-        onSessionRefresh={handleSessionRefresh}
-        onSessionExpired={handleSessionExpired}
-        onLogout={handleLogout}
-        logoutLoading={logoutLoading}
-        logoutError={logoutError}
-      />
-    );
-  }
-
-  // Trang chủ cửa hàng dùng chung cho Guest và Customer.
-  return (
+  // Nội dung trang Customer.
+  const customerPage = path.startsWith("/account") ? (
+    <Dashboard
+      user={session.user}
+      accessToken={session.accessToken}
+      onSessionRefresh={handleSessionRefresh}
+      onSessionExpired={handleSessionExpired}
+      onLogout={handleLogout}
+      logoutLoading={logoutLoading}
+      logoutError={logoutError}
+    />
+  ) : (
     <StorefrontPage
       user={session.user}
       cartCount={cartCount}
       onNavigate={navigate}
       onRequireLogin={() => navigate("/login")}
       onAddToCart={() => setCartCount((count) => count + 1)}
+      onOpenSupport={() => setSupportOpen(true)}
     />
+  );
+
+  // Widget được đặt ngoài nội dung từng trang để không bị khởi tạo lại
+  // khi Customer chuyển giữa Storefront và Dashboard.
+  return (
+    <>
+      {customerPage}
+
+      <CustomerSupportWidget
+        user={session.user}
+        accessToken={session.accessToken}
+        onSessionRefresh={handleSessionRefresh}
+        onSessionExpired={handleSessionExpired}
+        isOpen={supportOpen}
+        onOpenChange={setSupportOpen}
+      />
+    </>
   );
 }
 
