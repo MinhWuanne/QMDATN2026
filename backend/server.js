@@ -12,6 +12,8 @@ const authRoutes = require("./routes/auth.routes");
 const adminAuthRoutes = require("./routes/admin-auth.routes");
 
 const orderRoutes = require("./modules/order/order.routes");
+
+const cartRoutes = require("./modules/cart/cart.routes");
 const returnRoutes = require("./modules/return/return.routes");
 const memberProfileRequestRoutes = require(
   "./modules/member-profile-request/member-profile-request.routes"
@@ -115,7 +117,7 @@ app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/admin/auth", authLimiter, adminAuthRoutes);
 app.use("/api/admin/catalog", adminCatalogRoutes);
 app.use("/api/catalog", customerCatalogRoutes);
-
+app.use("/api/cart", cartRoutes);
 app.use("/api/orders", orderRoutes.customerOrderRouter);
 app.use("/api/admin/orders", orderRoutes.adminOrderRouter);
 app.use("/api/payments", paymentRoutes);

@@ -5,13 +5,14 @@ import "./dashboard.css";
 
 import CustomerOverview from "../../components/account/CustomerOverview.jsx";
 import CustomerProfile from "../../components/account/CustomerProfile.jsx";
-
 import AddressBook from "../../components/account/AddressBook.jsx";
+
+import MyOrdersPage from "../orders/MyOrdersPage.jsx";
+import OrderDetailPage from "../orders/OrderDetailPage.jsx";
 
 const navigation = [
   { id: "overview", label: "Tổng quan", icon: "⌂", enabled: true },
-  { id: "orders", label: "Đơn hàng", icon: "▤", status: "Đang làm" },
-  { id: "returns", label: "Đổi / trả", icon: "↺", status: "Chuẩn bị" },
+  { id: "orders", label: "Đơn hàng", icon: "▤", enabled: true },
   {
     id: "profile",
     label: "Thông tin cá nhân",
@@ -91,13 +92,40 @@ export default function Dashboard({
   onLogout,
   logoutLoading,
   logoutError,
+  onNavigate,
+  path = "/account",
+  orderId = null,
 }) {
   const [activeSection, setActiveSection] = useState("overview");
-  const memberName = getMemberName(user);
+
+  const isOrderPath =
+    path === "/orders" || path.startsWith("/orders/");
+
+  // Khi ở URL đơn hàng, sidebar và topbar luôn nhận diện mục Đơn hàng.
+  const displayedSection = isOrderPath ? "orders" : activeSection;
 
   const currentSection = navigation.find(
-    (item) => item.id === activeSection
+    (item) => item.id === displayedSection
   );
+
+  const memberName = getMemberName(user);
+
+  function handleNavigation(item) {
+    if (!item.enabled) return;
+
+    if (item.id === "orders") {
+      onNavigate("/orders");
+      return;
+    }
+
+    setActiveSection(item.id);
+
+    // Nếu đang ở trang đơn hàng, quay về khu vực tài khoản
+    // khi chọn Tổng quan / Thông tin cá nhân / Sổ địa chỉ.
+    if (isOrderPath) {
+      onNavigate("/account");
+    }
+  }
 
   return (
     <main className="member-dashboard">
@@ -111,29 +139,27 @@ export default function Dashboard({
           <strong>Quản lý tài khoản</strong>
         </div>
 
-        <nav className="member-sidebar-nav" aria-label="Điều hướng tài khoản">
+        <nav
+          className="member-sidebar-nav"
+          aria-label="Điều hướng tài khoản"
+        >
           <span className="member-sidebar-label">MENU CHÍNH</span>
 
           {navigation.map((item) => {
-            const isActive = activeSection === item.id;
+            const isActive = displayedSection === item.id;
             const isEnabled = Boolean(item.enabled);
 
             return (
               <button
                 key={item.id}
                 type="button"
-                className={`member-sidebar-link ${isActive ? "active" : ""
-                  }`}
+                className={`member-sidebar-link ${
+                  isActive ? "active" : ""
+                }`}
                 disabled={!isEnabled}
-                onClick={() => {
-                  if (isEnabled) setActiveSection(item.id);
-                }}
+                onClick={() => handleNavigation(item)}
                 aria-current={isActive ? "page" : undefined}
-                title={
-                  !isEnabled
-                    ? `${item.label} - ${item.status || "Chưa triển khai"}`
-                    : item.label
-                }
+                title={item.label}
               >
                 <span className="member-sidebar-icon" aria-hidden="true">
                   {item.icon}
@@ -142,17 +168,6 @@ export default function Dashboard({
                 <span className="member-sidebar-link-text">
                   {item.label}
                 </span>
-
-                {!isEnabled && item.status && (
-                  <span
-                    className={`member-sidebar-mini-status ${item.status === "Đang làm"
-                      ? "in-progress"
-                      : item.status === "Chuẩn bị"
-                        ? "preparing"
-                        : "upcoming"
-                      }`}
-                  />
-                )}
               </button>
             );
           })}
@@ -206,27 +221,51 @@ export default function Dashboard({
         <div className="member-main-content">
           <Notice>{logoutError}</Notice>
 
-          {activeSection === "overview" && (
-            <CustomerOverview
-              user={user}
-              onOpenProfile={() => setActiveSection("profile")}
-            />
-          )}
+          {isOrderPath ? (
+            orderId ? (
+              <OrderDetailPage
+                orderId={orderId}
+                accessToken={accessToken}
+                onNavigate={onNavigate}
+                onSessionRefresh={onSessionRefresh}
+                onSessionExpired={onSessionExpired}
+              />
+            ) : (
+              <MyOrdersPage
+                accessToken={accessToken}
+                onNavigate={onNavigate}
+                onSessionRefresh={onSessionRefresh}
+                onSessionExpired={onSessionExpired}
+              />
+            )
+          ) : (
+            <>
+              {activeSection === "overview" && (
+                <CustomerOverview
+                  user={user}
+                  accessToken={accessToken}
+                  onSessionRefresh={onSessionRefresh}
+                  onSessionExpired={onSessionExpired}
+                  onOpenProfile={() => setActiveSection("profile")}
+                />
+              )}
 
-          {activeSection === "profile" && (
-            <CustomerProfile
-              user={user}
-              accessToken={accessToken}
-              onSessionExpired={onSessionExpired}
-            />
-          )}
+              {activeSection === "profile" && (
+                <CustomerProfile
+                  user={user}
+                  accessToken={accessToken}
+                  onSessionExpired={onSessionExpired}
+                />
+              )}
 
-          {activeSection === "addresses" && (
-            <AddressBook
-              accessToken={accessToken}
-              onSessionRefresh={onSessionRefresh}
-              onSessionExpired={onSessionExpired}
-            />
+              {activeSection === "addresses" && (
+                <AddressBook
+                  accessToken={accessToken}
+                  onSessionRefresh={onSessionRefresh}
+                  onSessionExpired={onSessionExpired}
+                />
+              )}
+            </>
           )}
 
           <MemberFooter />

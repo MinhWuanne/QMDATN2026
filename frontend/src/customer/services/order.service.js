@@ -8,7 +8,7 @@ async function parseResponse(response) {
 
   if (!response.ok || result.success === false) {
     const error = new Error(
-      result.message || "Không thể tải thông tin đơn hàng."
+      result.message || "Không thể thực hiện yêu cầu đơn hàng."
     );
 
     error.status = response.status;
@@ -107,4 +107,144 @@ export function getMemberOrderDetail({
     onSessionRefresh,
     onSessionExpired
   );
+}
+
+export function createMemberOrder({
+  payload,
+  accessToken,
+  onSessionRefresh,
+  onSessionExpired,
+}) {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Thông tin đặt hàng không hợp lệ.");
+  }
+
+  return orderRequest(
+    "",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+    onSessionRefresh,
+    onSessionExpired
+  );
+}
+
+export function createMemberBuyNowOrder({
+  payload,
+  accessToken,
+  onSessionRefresh,
+  onSessionExpired,
+}) {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Thông tin đặt hàng không hợp lệ.");
+  }
+
+  return orderRequest(
+    "/buy-now",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+    onSessionRefresh,
+    onSessionExpired
+  );
+}
+
+export function startMemberCheckout({
+  orderId,
+  accessToken,
+  onSessionRefresh,
+  onSessionExpired,
+}) {
+  if (!orderId) {
+    throw new Error("Thiếu mã đơn hàng để bắt đầu thanh toán.");
+  }
+
+  return orderRequest(
+    `/${encodeURIComponent(orderId)}/checkout`,
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    },
+    accessToken,
+    onSessionRefresh,
+    onSessionExpired
+  );
+}
+
+export function cancelMemberOrder({
+  orderId,
+  note,
+  accessToken,
+  onSessionRefresh,
+  onSessionExpired,
+}) {
+  if (!orderId) {
+    throw new Error("Thiếu mã đơn hàng cần hủy.");
+  }
+
+  return orderRequest(
+    `/${encodeURIComponent(orderId)}/cancel`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        note: note?.trim() || undefined,
+      }),
+    },
+    accessToken,
+    onSessionRefresh,
+    onSessionExpired
+  );
+}
+
+export function validateMemberVoucher({
+  payload,
+  accessToken,
+  onSessionRefresh,
+  onSessionExpired,
+}) {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Thông tin mã giảm giá không hợp lệ.");
+  }
+
+  const request = async (token) => {
+    const response = await fetch(
+      `${API_BASE_URL}/api/member/vouchers/validate`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    return parseResponse(response);
+  };
+
+  return (async () => {
+    try {
+      return await request(accessToken);
+    } catch (error) {
+      if (error.status !== 401) throw error;
+
+      try {
+        const session = await onSessionRefresh();
+
+        if (!session?.accessToken) {
+          throw new Error("Không thể làm mới phiên đăng nhập.");
+        }
+
+        return await request(session.accessToken);
+      } catch (refreshError) {
+        onSessionExpired?.();
+        throw refreshError;
+      }
+    }
+  })();
 }

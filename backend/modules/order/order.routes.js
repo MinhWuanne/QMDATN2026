@@ -23,6 +23,14 @@ router.post(
     orderController.createOrder
 );
 
+// Tạo đơn hàng trực tiếp từ Buy Now
+router.post(
+    "/buy-now",
+    authorize("CUSTOMER"),
+    validate(orderValidator.buyNowOrderSchema),
+    orderController.createBuyNowOrder
+);
+
 router.post(
     "/:orderId/checkout",
     authorize("CUSTOMER"),

@@ -17,26 +17,43 @@ function moneyToCents(value) {
     return BigInt(cents.toFixed(0));
 }
 
+// CART uses cartItemId; BUY_NOW uses variantId.
+// This preserves CART ordering while supporting independent Buy Now items.
+function getItemReference(item) {
+    if (
+        typeof item?.cartItemId === "string" &&
+        item.cartItemId.trim() !== ""
+    ) {
+        return item.cartItemId;
+    }
+
+    if (
+        typeof item?.variantId === "string" &&
+        item.variantId.trim() !== ""
+    ) {
+        return item.variantId;
+    }
+
+    return null;
+}
+
 // Allocate an order-level voucher discount using the Largest Remainder Method.
-// Equal remainders are resolved by cartItemId to ensure deterministic results.
+// Equal remainders are resolved by a stable item reference.
 function allocateVoucherDiscount(items, discountAmount, subtotal) {
     if (!Array.isArray(items) || items.length === 0) {
         throwAllocationError("INVALID_ORDER_ITEMS");
     }
 
-    const seenCartItemIds = new Set();
+    const seenReferences = new Set();
 
     const normalizedItems = items.map((item) => {
-        if (
-            !item ||
-            typeof item.cartItemId !== "string" ||
-            item.cartItemId.trim() === "" ||
-            seenCartItemIds.has(item.cartItemId)
-        ) {
+        const itemReference = getItemReference(item);
+
+        if (!item || !itemReference || seenReferences.has(itemReference)) {
             throwAllocationError("INVALID_ORDER_ITEM_REFERENCE");
         }
 
-        seenCartItemIds.add(item.cartItemId);
+        seenReferences.add(itemReference);
 
         const lineCents = moneyToCents(item.lineTotal);
 
@@ -46,6 +63,7 @@ function allocateVoucherDiscount(items, discountAmount, subtotal) {
 
         return {
             ...item,
+            allocationReference: itemReference,
             lineCents,
         };
     });
@@ -76,10 +94,12 @@ function allocateVoucherDiscount(items, discountAmount, subtotal) {
             throwAllocationError("INVALID_VOUCHER_DISCOUNT_ALLOCATION");
         }
 
-        return normalizedItems.map(({ lineCents, ...item }) => ({
-            ...item,
-            discountAmount: new Prisma.Decimal(0),
-        }));
+        return normalizedItems.map(
+            ({ lineCents, allocationReference, ...item }) => ({
+                ...item,
+                discountAmount: new Prisma.Decimal(0),
+            })
+        );
     }
 
     // Calculate each item's initial allocation and remainder.
@@ -101,12 +121,14 @@ function allocateVoucherDiscount(items, discountAmount, subtotal) {
     let remainingCents = discountCents - initiallyAllocated;
 
     // Largest remainders receive the remaining cents.
-    // cartItemId is the deterministic tie-break.
+    // Stable item reference is the deterministic tie-break.
     const remainderRanking = [...allocations].sort((a, b) => {
         if (a.remainder > b.remainder) return -1;
         if (a.remainder < b.remainder) return 1;
 
-        return a.cartItemId.localeCompare(b.cartItemId);
+        return a.allocationReference.localeCompare(
+            b.allocationReference
+        );
     });
 
     for (let index = 0; remainingCents > 0n; index++) {
@@ -124,7 +146,13 @@ function allocateVoucherDiscount(items, discountAmount, subtotal) {
     // Return original item fields plus the allocated discount.
     // Internal calculation fields are intentionally excluded.
     return allocations.map(
-        ({ lineCents, allocatedCents, remainder, ...item }) => ({
+        ({
+            lineCents,
+            allocatedCents,
+            remainder,
+            allocationReference,
+            ...item
+        }) => ({
             ...item,
             discountAmount: new Prisma.Decimal(
                 allocatedCents.toString()

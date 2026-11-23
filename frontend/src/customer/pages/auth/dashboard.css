@@ -1213,3 +1213,397 @@
     gap: 8px;
   }
 }
+
+
+/* =========================================
+   16. MEMBERSHIP TIER
+========================================= */
+
+.member-tier-section {
+  margin-top: 38px;
+}
+
+.member-tier-card {
+  overflow: hidden;
+  border: 1px solid var(--md-line);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.member-tier-main {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: center;
+  gap: 30px;
+  padding: 27px 30px;
+}
+
+.member-tier-image-wrap {
+  min-height: 175px;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border-radius: 6px;
+  background: #f7f8f4;
+}
+
+.member-tier-image {
+  display: block;
+  width: 100%;
+  max-width: 190px;
+  max-height: 165px;
+  object-fit: contain;
+}
+
+.member-tier-image-fallback {
+  color: #8b987c;
+  font-size: 30px;
+  font-weight: 950;
+  letter-spacing: -2px;
+}
+
+.member-tier-information {
+  min-width: 0;
+}
+
+.member-tier-eyebrow {
+  color: #92998d;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 1.5px;
+}
+
+.member-tier-information h3 {
+  margin: 8px 0;
+  color: var(--md-ink);
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.8px;
+}
+
+.member-tier-information > p {
+  margin: 0;
+  color: var(--md-muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.member-tier-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 23px;
+  padding-top: 19px;
+  border-top: 1px solid var(--md-line);
+}
+
+.member-tier-stats > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.member-tier-stats span {
+  color: #92998d;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.8px;
+}
+
+.member-tier-stats strong {
+  overflow-wrap: anywhere;
+  color: var(--md-ink);
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.member-tier-progress {
+  padding: 20px 30px 22px;
+  border-top: 1px solid var(--md-line);
+  background: #fafbf8;
+}
+
+.member-tier-progress-heading,
+.member-tier-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.member-tier-progress-heading > span {
+  color: #747d6d;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 1px;
+}
+
+.member-tier-progress-heading > strong {
+  color: #526b39;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.member-tier-progress-track {
+  height: 9px;
+  margin-top: 13px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #e8ece2;
+}
+
+.member-tier-progress-fill {
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: #a6c975;
+  transition: width 0.35s ease;
+}
+
+.member-tier-next {
+  flex-wrap: wrap;
+  margin-top: 12px;
+  color: #858d7d;
+  font-size: 10px;
+}
+
+.member-tier-next strong {
+  color: var(--md-ink);
+  font-weight: 850;
+}
+
+.member-tier-max {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.member-tier-max-icon {
+  width: 39px;
+  height: 39px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #526b39;
+  background: #eaf2df;
+  font-size: 20px;
+}
+
+.member-tier-max strong {
+  color: var(--md-ink);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.member-tier-max p {
+  margin: 5px 0 0;
+  color: var(--md-muted);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+/* Membership benefits */
+
+.member-tier-benefits {
+  margin-top: 17px;
+  padding: 23px 25px;
+  border: 1px solid var(--md-line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.member-tier-benefits-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 18px;
+}
+
+.member-tier-benefits-heading h3 {
+  margin: 7px 0 0;
+  color: var(--md-ink);
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.member-tier-coming-soon {
+  flex-shrink: 0;
+  padding: 7px 10px;
+  border-radius: 3px;
+  color: #78836b;
+  background: #f0f3eb;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.7px;
+}
+
+.member-tier-benefits-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.member-tier-benefit {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 15px 13px;
+  border: 1px solid #edf0e9;
+  border-radius: 5px;
+  background: #fafbf8;
+}
+
+.member-tier-benefit-icon {
+  flex-shrink: 0;
+  color: #8eae62;
+  font-size: 15px;
+}
+
+.member-tier-benefit > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.member-tier-benefit strong {
+  color: #424a3c;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.member-tier-benefit small {
+  color: #92998d;
+  font-size: 9px;
+}
+
+.member-tier-benefits-note {
+  margin: 14px 0 0;
+  color: #92998d;
+  font-size: 9px;
+  line-height: 1.7;
+}
+
+/* Membership loading and error */
+
+.member-tier-message {
+  padding: 25px;
+  border: 1px solid var(--md-line);
+  border-radius: 6px;
+  color: var(--md-muted);
+  background: #fff;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.member-tier-error {
+  border-color: #f0dedb;
+  color: #94534d;
+  background: #fffafa;
+}
+
+.member-tier-error p {
+  margin: 0 0 12px;
+}
+
+.member-tier-error button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid #293326;
+  border-radius: 4px;
+  color: #fff;
+  background: #293326;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.member-tier-error button:hover {
+  color: #293326;
+  background: var(--md-lime);
+  border-color: var(--md-lime);
+}
+
+/* Membership responsive */
+
+@media (max-width: 1100px) {
+  .member-tier-main {
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: 22px;
+  }
+
+  .member-tier-benefits-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .member-tier-main {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 20px;
+  }
+
+  .member-tier-image-wrap {
+    min-height: 145px;
+  }
+
+  .member-tier-image {
+    max-height: 135px;
+  }
+
+  .member-tier-progress {
+    padding: 18px 20px;
+  }
+
+  .member-tier-benefits {
+    padding: 19px 16px;
+  }
+}
+
+@media (max-width: 520px) {
+  .member-tier-section {
+    margin-top: 28px;
+  }
+
+  .member-tier-main {
+    padding: 16px;
+  }
+
+  .member-tier-information h3 {
+    font-size: 24px;
+  }
+
+  .member-tier-stats {
+    grid-template-columns: 1fr;
+    gap: 13px;
+  }
+
+  .member-tier-stats strong {
+    font-size: 15px;
+  }
+
+  .member-tier-progress {
+    padding: 16px;
+  }
+
+  .member-tier-progress-heading > span {
+    font-size: 8px;
+  }
+
+  .member-tier-next {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 7px;
+  }
+
+  .member-tier-benefits-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

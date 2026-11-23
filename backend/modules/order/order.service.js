@@ -1,79 +1,3 @@
-
-/*
- * ============================================================
- * QMDATN2026 - ORDER SERVICE
- * ============================================================
- *
- * PURPOSE
- * - Customer order creation, listing, detail and cancellation.
- * - VNPAY checkout session and pending-payment expiration.
- * - Admin order management, payment confirmation and status flow.
- * - Inventory reservation, deduction, release and restoration.
- *
- * BUSINESS RULES - DO NOT CHANGE WITHOUT REVIEW
- * - New orders support COD and VNPAY only.
- * - Stock is reserved when an order is created.
- * - Reserved stock is deducted when Admin confirms the order.
- * - COD payment is recorded only after DELIVERED.
- * - VNPAY orders must be PAID before status progression.
- * - COD orders must be PAID before COMPLETED.
- * - Paid orders cannot use normal cancellation; refund is required.
- * - Expired VNPAY checkout cancels the order, releases stock,
- *   restores eligible cart items and releases voucher usage.
- *
- * ORDER STATUS FLOW
- * PENDING_CONFIRMATION -> CONFIRMED -> PROCESSING
- * -> SHIPPING -> DELIVERED -> COMPLETED
- * CANCELLED is terminal.
- *
- * RETURN / EXCHANGE INTEGRATION
- * - Return/Exchange business logic is implemented in return.service.js.
- * - Eligible orders require paid payment and delivery within 3 days.
- * - Refund amount is based on OrderItem.discountAmount.
- * - Replacement orders use INTERNAL_EXCHANGE / NOT_REQUIRED.
- * - Replacement orders reserve stock at creation and deduct it
- *   when Admin confirms the replacement order.
- * - A return/exchange request is completed when its replacement
- *   order reaches DELIVERED.
- * - Cancelling an eligible replacement order returns its request
- *   to WAITING_FOR_STOCK.
- * - Never process Return/Exchange through normal order cancellation.
- * 
- * RETURN / EXCHANGE STATUS
- * - Prisma schema and database migration are prepared.
- * - Return module files are currently empty placeholders.
- * - Return/Exchange business logic is NOT implemented yet.
- * - Do not assume replacement orders can currently be created.
- *
- * IMPORTANT IMPLEMENTATION NOTES
- * - createOrder() must persist discountAmount for every OrderItem.
- * - Voucher allocation must use exact-cent arithmetic and ensure
- *   sum(OrderItem.discountAmount) === Order.discountAmount.
- * - Inventory and order/payment changes must remain transactional.
- * - Use compare-and-set (updateMany + count check) for concurrent
- *   state changes where currently implemented.
- * - Inventory movements must preserve correct signed quantities,
- *   movement types and referenceId.
- *
- * KNOWN ITEMS TO REVIEW
- * - expirePendingVnpayOrders() duplicate voucher usage cleanup
- *   has been removed; keep one deleteMany() call per transaction.
- * - Review this file's Return/Exchange integration before changing
- *   order lifecycle, inventory or payment behavior.
- *
- * DATABASE
- * - Prisma schema: backend/prisma/schema.prisma
- * - Return/Profile migration:
- *   20261114090000_complete_return_profile_workflow
- * - Current target database: Aiven PostgreSQL / defaultdb.
- *
- * MAINTENANCE RULE
- * Update this note whenever important business rules, lifecycle
- * behavior or service responsibilities change.
- * ============================================================
- */
-
-
 const crypto = require("crypto");
 const { Prisma } = require("@prisma/client");
 const prisma = require("../../core/database/prisma");
@@ -285,11 +209,24 @@ async function validateVoucher(tx, { voucherCode, userId, subtotal }) {
 // CART VALIDATION
 // ==========================================
 
-async function getValidatedCart(tx, userId) {
+async function getValidatedCart(tx, userId, selectedCartItemIds) {
+    if (
+        !Array.isArray(selectedCartItemIds) ||
+        selectedCartItemIds.length === 0 ||
+        new Set(selectedCartItemIds).size !== selectedCartItemIds.length
+    ) {
+        throwError("INVALID_SELECTED_CART_ITEMS", 400);
+    }
+
     const cart = await tx.cart.findUnique({
         where: { userId },
         include: {
             items: {
+                where: {
+                    id: {
+                        in: selectedCartItemIds,
+                    },
+                },
                 include: {
                     variant: {
                         include: {
@@ -302,7 +239,16 @@ async function getValidatedCart(tx, userId) {
         },
     });
 
-    if (!cart || cart.items.length === 0) {
+    if (!cart) {
+        throwError("CART_EMPTY", 400);
+    }
+
+    // Đảm bảo tất cả CartItem được yêu cầu đều thuộc giỏ hàng của Customer.
+    if (cart.items.length !== selectedCartItemIds.length) {
+        throwError("CART_ITEM_NOT_FOUND_OR_NOT_OWNED", 404);
+    }
+
+    if (cart.items.length === 0) {
         throwError("CART_EMPTY", 400);
     }
 
@@ -353,10 +299,76 @@ async function getValidatedCart(tx, userId) {
     return { cart, items: validatedItems };
 }
 
+async function getValidatedBuyNowItem(tx, variantId, quantity) {
+    assertUuid(variantId, "variantId");
+
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+        throwValidationError(
+            "quantity",
+            "Số lượng sản phẩm không hợp lệ"
+        );
+    }
+
+    const variant = await tx.productVariant.findUnique({
+        where: { id: variantId },
+        include: {
+            product: true,
+            inventory: true,
+        },
+    });
+
+    if (!variant) {
+        throwError("PRODUCT_VARIANT_NOT_FOUND", 404);
+    }
+
+    const product = variant.product;
+    const inventory = variant.inventory;
+
+    if (product.status !== "ACTIVE") {
+        throwError("PRODUCT_NOT_AVAILABLE", 409);
+    }
+
+    if (!variant.isActive) {
+        throwError("PRODUCT_VARIANT_INACTIVE", 409);
+    }
+
+    if (!inventory) {
+        throwError("INVENTORY_NOT_FOUND", 404);
+    }
+
+    const availableQuantity =
+        inventory.quantityOnHand - inventory.reservedQuantity;
+
+    if (availableQuantity < quantity) {
+        throwError("INSUFFICIENT_STOCK", 409);
+    }
+
+    const unitPrice = new Prisma.Decimal(product.price);
+    const lineTotal = unitPrice.mul(quantity);
+
+    return [{
+        variantId: variant.id,
+        productId: product.id,
+        productName: product.name,
+        variantName: variant.name,
+        sku: variant.sku,
+        variantAttributes: variant.attributes,
+        quantity,
+        unitPrice,
+        lineTotal,
+        inventory,
+    }];
+}
+
 // Restore eligible order items to customer's cart after cancellation.
 async function restoreOrderItemsToCart(tx, order) {
     if (!order?.userId || !Array.isArray(order.items)) {
         throwError("INVALID_ORDER_DATA", 400);
+    }
+
+    // Buy Now orders must not be restored to the shopping cart.
+    if (order.source !== "CART") {
+        return null;
     }
 
     const cart = await tx.cart.upsert({
@@ -452,6 +464,148 @@ async function reserveInventory(tx, items) {
             throwError("INSUFFICIENT_STOCK_OR_CONCURRENT_UPDATE", 409);
         }
     }
+}
+
+async function createOrderFromValidatedItems(tx, {
+    userId,
+    input,
+    items,
+    source,
+    cart = null,
+    selectedCartItemIds = [],
+}) {
+    const {
+        paymentMethod,
+        voucherCode,
+        shippingRecipientName,
+        shippingPhone,
+        shippingProvinceCity,
+        shippingDistrict,
+        shippingStreet,
+        shippingAddressNote,
+        customerNote,
+    } = input;
+
+    const subtotal = items.reduce(
+        (total, item) => total.add(item.lineTotal),
+        new Prisma.Decimal(0)
+    );
+
+    const voucherResult = await validateVoucher(tx, {
+        voucherCode,
+        userId,
+        subtotal,
+    });
+
+    const voucher = voucherResult?.voucher || null;
+
+    const discountAmount = voucherResult
+        ? voucherResult.discountAmount
+        : new Prisma.Decimal(0);
+
+    const allocatedItems = allocateVoucherDiscount(
+        items,
+        discountAmount,
+        subtotal
+    );
+
+    const totalAmount = subtotal
+        .sub(discountAmount)
+        .add(SHIPPING_FEE);
+
+    if (totalAmount.lt(0)) {
+        throwError("INVALID_ORDER_TOTAL", 400);
+    }
+
+    await reserveInventory(tx, items);
+
+    const order = await tx.order.create({
+        data: {
+            orderNumber: generateOrderNumber(),
+            userId,
+            source,
+            voucherId: voucher?.id || null,
+            status: "PENDING_CONFIRMATION",
+            paymentMethod,
+            subtotal,
+            discountAmount,
+            shippingFee: SHIPPING_FEE,
+            totalAmount,
+            shippingRecipientName,
+            shippingPhone,
+            shippingProvinceCity,
+            shippingDistrict,
+            shippingStreet,
+            shippingAddressNote: shippingAddressNote || null,
+            customerNote: customerNote || null,
+            items: {
+                create: allocatedItems.map((item) => ({
+                    id: crypto.randomUUID(),
+                    productId: item.productId,
+                    variantId: item.variantId,
+                    productName: item.productName,
+                    variantName: item.variantName,
+                    sku: item.sku,
+                    variantAttributes: item.variantAttributes,
+                    unitPrice: item.unitPrice,
+                    quantity: item.quantity,
+                    lineTotal: item.lineTotal,
+                    discountAmount: item.discountAmount,
+                })),
+            },
+        },
+    });
+
+    await tx.payment.create({
+        data: {
+            orderId: order.id,
+            method: paymentMethod,
+            status: "PENDING",
+            amount: totalAmount,
+        },
+    });
+
+    await createOrderHistory(tx, {
+        orderId: order.id,
+        changedById: null,
+        oldStatus: null,
+        newStatus: "PENDING_CONFIRMATION",
+        note: "Order created by customer",
+    });
+
+    if (voucher) {
+        await tx.voucherUsage.create({
+            data: {
+                voucherId: voucher.id,
+                userId,
+                orderId: order.id,
+                discountAmount,
+            },
+        });
+    }
+
+    // Only CART orders remove selected items from the shopping cart.
+    if (source === "CART") {
+        if (!cart || selectedCartItemIds.length === 0) {
+            throwError("INVALID_SELECTED_CART_ITEMS", 400);
+        }
+
+        const deletedCartItems = await tx.cartItem.deleteMany({
+            where: {
+                cartId: cart.id,
+                id: { in: selectedCartItemIds },
+            },
+        });
+
+        if (deletedCartItems.count !== selectedCartItemIds.length) {
+            throwError("CART_ITEMS_CHANGED_DURING_CHECKOUT", 409);
+        }
+    }
+
+    return tx.order.findUnique({
+        where: { id: order.id },
+        include: ORDER_INCLUDE,
+    });
 }
 
 // Release reserved stock before confirmation.
@@ -762,21 +916,22 @@ async function resetCancelledReplacementReturn(
 // ==========================================
 
 async function createOrder(userId, input) {
+    const { selectedCartItemIds } = input;
+
     assertUuid(userId, "userId");
 
-    const {
-        paymentMethod,
-        voucherCode,
-        shippingRecipientName,
-        shippingPhone,
-        shippingProvinceCity,
-        shippingDistrict,
-        shippingStreet,
-        shippingAddressNote,
-        customerNote,
-    } = input;
+    if (
+        !Array.isArray(selectedCartItemIds) ||
+        selectedCartItemIds.length === 0 ||
+        new Set(selectedCartItemIds).size !== selectedCartItemIds.length
+    ) {
+        throwValidationError(
+            "selectedCartItemIds",
+            "Danh sách sản phẩm được chọn không hợp lệ"
+        );
+    }
 
-    if (!["COD", "VNPAY"].includes(paymentMethod)) {
+    if (!["COD", "VNPAY"].includes(input.paymentMethod)) {
         throwValidationError(
             "paymentMethod",
             "Phương thức thanh toán không hợp lệ"
@@ -786,114 +941,19 @@ async function createOrder(userId, input) {
     try {
         return await prisma.$transaction(
             async (tx) => {
-                const { cart, items } = await getValidatedCart(tx, userId);
-
-                const subtotal = items.reduce(
-                    (total, item) => total.add(item.lineTotal),
-                    new Prisma.Decimal(0)
-                );
-
-                const voucherResult = await validateVoucher(tx, {
-                    voucherCode,
+                const { cart, items } = await getValidatedCart(
+                    tx,
                     userId,
-                    subtotal,
-                });
-
-                const voucher = voucherResult?.voucher || null;
-
-                const discountAmount = voucherResult
-                    ? voucherResult.discountAmount
-                    : new Prisma.Decimal(0);
-
-                const allocatedItems = allocateVoucherDiscount(
-                    items,
-                    discountAmount,
-                    subtotal
+                    selectedCartItemIds
                 );
 
-                const totalAmount = subtotal
-                    .sub(discountAmount)
-                    .add(SHIPPING_FEE);
-
-                if (totalAmount.lt(0)) {
-                    throwError("INVALID_ORDER_TOTAL", 400);
-                }
-
-                await reserveInventory(tx, items);
-
-                const order = await tx.order.create({
-                    data: {
-                        orderNumber: generateOrderNumber(),
-                        userId,
-                        voucherId: voucher?.id || null,
-                        status: "PENDING_CONFIRMATION",
-                        paymentMethod,
-                        subtotal,
-                        discountAmount,
-                        shippingFee: SHIPPING_FEE,
-                        totalAmount,
-
-                        shippingRecipientName,
-                        shippingPhone,
-                        shippingProvinceCity,
-                        shippingDistrict,
-                        shippingStreet,
-                        shippingAddressNote: shippingAddressNote || null,
-                        customerNote: customerNote || null,
-
-                        items: {
-                            create: allocatedItems.map((item) => ({
-                                id: crypto.randomUUID(),
-                                productId: item.productId,
-                                variantId: item.variantId,
-                                productName: item.productName,
-                                variantName: item.variantName,
-                                sku: item.sku,
-                                variantAttributes: item.variantAttributes,
-                                unitPrice: item.unitPrice,
-                                quantity: item.quantity,
-                                lineTotal: item.lineTotal,
-                                discountAmount: item.discountAmount,
-                            })),
-                        },
-                    },
-                });
-
-                await tx.payment.create({
-                    data: {
-                        orderId: order.id,
-                        method: paymentMethod,
-                        status: "PENDING",
-                        amount: totalAmount,
-                    },
-                });
-
-                await createOrderHistory(tx, {
-                    orderId: order.id,
-                    changedById: null,
-                    oldStatus: null,
-                    newStatus: "PENDING_CONFIRMATION",
-                    note: "Order created by customer",
-                });
-
-                if (voucher) {
-                    await tx.voucherUsage.create({
-                        data: {
-                            voucherId: voucher.id,
-                            userId,
-                            orderId: order.id,
-                            discountAmount,
-                        },
-                    });
-                }
-
-                await tx.cartItem.deleteMany({
-                    where: { cartId: cart.id },
-                });
-
-                return tx.order.findUnique({
-                    where: { id: order.id },
-                    include: ORDER_INCLUDE,
+                return createOrderFromValidatedItems(tx, {
+                    userId,
+                    input,
+                    items,
+                    source: "CART",
+                    cart,
+                    selectedCartItemIds,
                 });
             },
             {
@@ -901,6 +961,52 @@ async function createOrder(userId, input) {
             }
         );
     } catch (error) {
+        handleOrderError(error);
+    }
+}
+
+async function createBuyNowOrder(userId, input) {
+    const { variantId, quantity } = input;
+
+    assertUuid(userId, "userId");
+
+    if (!["COD", "VNPAY"].includes(input.paymentMethod)) {
+        throwValidationError(
+            "paymentMethod",
+            "Phương thức thanh toán không hợp lệ"
+        );
+    }
+
+    try {
+        return await prisma.$transaction(
+            async (tx) => {
+                const items = await getValidatedBuyNowItem(
+                    tx,
+                    variantId,
+                    quantity
+                );
+
+                return createOrderFromValidatedItems(tx, {
+                    userId,
+                    input,
+                    items,
+                    source: "BUY_NOW",
+                });
+            },
+            {
+                isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+            }
+        );
+    } catch (error) {
+        console.error("[BUY_NOW_ORDER_ERROR]", {
+            message: error.message,
+            name: error.name,
+            code: error.code,
+            statusCode: error.statusCode,
+            meta: error.meta,
+            stack: error.stack,
+        });
+
         handleOrderError(error);
     }
 }
@@ -1883,12 +1989,98 @@ async function cancelAdminOrder(orderId, adminId, note = null) {
     }
 }
 
+
+async function previewOrderVoucher(userId, input) {
+    assertUuid(userId, "userId");
+
+    if (!input || typeof input !== "object") {
+        throwValidationError("body", "Dữ liệu kiểm tra voucher không hợp lệ");
+    }
+
+    const { code, selectedCartItemIds } = input;
+
+    if (typeof code !== "string" || !code.trim()) {
+        throwValidationError("code", "Vui lòng nhập mã giảm giá");
+    }
+
+    if (
+        !Array.isArray(selectedCartItemIds) ||
+        selectedCartItemIds.length === 0 ||
+        selectedCartItemIds.length > 100 ||
+        new Set(selectedCartItemIds).size !== selectedCartItemIds.length
+    ) {
+        throwValidationError(
+            "selectedCartItemIds",
+            "Danh sách sản phẩm được chọn không hợp lệ"
+        );
+    }
+
+    for (const id of selectedCartItemIds) {
+        assertUuid(id, "selectedCartItemIds");
+    }
+
+    try {
+        return await prisma.$transaction(
+            async (tx) => {
+                const { items } = await getValidatedCart(
+                    tx,
+                    userId,
+                    selectedCartItemIds
+                );
+
+                const subtotal = items.reduce(
+                    (total, item) => total.add(item.lineTotal),
+                    new Prisma.Decimal(0)
+                );
+
+                const voucherResult = await validateVoucher(tx, {
+                    voucherCode: code,
+                    userId,
+                    subtotal,
+                });
+
+                if (!voucherResult) {
+                    throwError("VOUCHER_NOT_FOUND", 404);
+                }
+
+                const discountAmount = voucherResult.discountAmount;
+
+                const totalAmount = subtotal
+                    .sub(discountAmount)
+                    .add(SHIPPING_FEE);
+
+                return {
+                    valid: true,
+                    code: voucherResult.voucher.code,
+                    discountType: voucherResult.voucher.discountType,
+                    discountValue: Number(
+                        voucherResult.voucher.discountValue
+                    ),
+                    subtotal: Number(subtotal.toFixed(2)),
+                    discountAmount: Number(discountAmount.toFixed(2)),
+                    shippingFee: Number(SHIPPING_FEE.toFixed(2)),
+                    totalAmount: Number(totalAmount.toFixed(2)),
+                };
+            },
+            {
+                isolationLevel:
+                    Prisma.TransactionIsolationLevel.Serializable,
+            }
+        );
+    } catch (error) {
+        handleOrderError(error);
+    }
+}
+
+
 // ==========================================
 // EXPORTS
 // ==========================================
 
+
 module.exports = {
     createOrder,
+    createBuyNowOrder,
 
     listMyOrders,
     getMyOrderById,
@@ -1899,6 +2091,10 @@ module.exports = {
     markOrderPaid,
     updateOrderStatus,
     cancelAdminOrder,
+
     startCheckout,
     expirePendingVnpayOrders,
+
+    previewOrderVoucher,
 };
+

@@ -59,9 +59,19 @@ async function updateMemberStatus(req, res) {
     });
 }
 
+async function getMyMembership(req, res) {
+    const result = await service.getMyMembership(req.user.id);
+
+    return res.status(200).json({
+        success: true,
+        data: result,
+    });
+}
+
 module.exports = {
     listMembers,
     getMemberStats,
     getMember,
     updateMemberStatus,
+    getMyMembership,
 };

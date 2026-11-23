@@ -1,4 +1,3 @@
-
 // ============================================================
 // QMDATN2026 - DATABASE SCHEMA
 // ============================================================
@@ -57,7 +56,6 @@
 // - Before adding a migration, inspect existing migrations and
 //   current database state.
 // ============================================================
-
 
 // ==========================================
 // PRISMA CLIENT
@@ -129,6 +127,13 @@ enum OrderStatus {
   CANCELLED
 
   @@map("order_status")
+}
+
+enum OrderSource {
+  CART
+  BUY_NOW
+
+  @@map("order_source")
 }
 
 enum PaymentMethod {
@@ -652,6 +657,7 @@ model Order {
   userId      String      @map("user_id") @db.Uuid
   voucherId   String?     @map("voucher_id") @db.Uuid
   status      OrderStatus @default(PENDING_CONFIRMATION)
+  source      OrderSource @default(CART)
 
   paymentMethod  PaymentMethod @map("payment_method")
   subtotal       Decimal       @db.Decimal(14, 2)

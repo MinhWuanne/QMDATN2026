@@ -405,6 +405,198 @@ async function getMemberById(id) {
 }
 
 // ==========================================
+// CUSTOMER MEMBERSHIP TIER
+// ==========================================
+
+const MEMBERSHIP_TIERS = [
+    {
+        key: "BRONZE",
+        name: "Đồng",
+        minSpend: 0,
+        image: "/src/assets/hang-thanh-vien-dong.webp",
+    },
+    {
+        key: "SILVER",
+        name: "Bạc",
+        minSpend: 10000000,
+        image: "/src/assets/hang-thanh-vien-bac.webp",
+    },
+    {
+        key: "GOLD",
+        name: "Vàng",
+        minSpend: 30000000,
+        image: "/src/assets/hang-thanh-vien-vang.webp",
+    },
+    {
+        key: "DIAMOND",
+        name: "Kim cương",
+        minSpend: 100000000,
+        image: "/src/assets/hang-thanh-vien-kim-cuong.webp",
+    },
+];
+
+async function getMyMembership(userId) {
+    const customer = await prisma.user.findFirst({
+        where: {
+            id: userId,
+            role: "CUSTOMER",
+        },
+        select: {
+            id: true,
+        },
+    });
+
+    if (!customer) {
+        throw new Error("MEMBER_NOT_FOUND");
+    }
+
+    const orders = await prisma.order.findMany({
+        where: {
+            userId,
+            status: "COMPLETED",
+            paymentMethod: {
+                not: "INTERNAL_EXCHANGE",
+            },
+            payment: {
+                is: {
+                    status: "PAID",
+                },
+            },
+        },
+        select: {
+            id: true,
+            totalAmount: true,
+            payment: {
+                select: {
+                    transactions: {
+                        where: {
+                            type: "REFUND",
+                            isSuccessful: true,
+                        },
+                        select: {
+                            requestData: true,
+                        },
+                    },
+                },
+            },
+        },
+    });
+
+    let totalSpend = new Prisma.Decimal(0);
+
+    for (const order of orders) {
+        let orderRefund = new Prisma.Decimal(0);
+
+        for (const transaction of order.payment?.transactions ?? []) {
+            const amount = transaction.requestData?.amount;
+
+            if (amount === undefined || amount === null) {
+                continue;
+            }
+
+            try {
+                const refundAmount = new Prisma.Decimal(String(amount));
+
+                if (refundAmount.isFinite() && refundAmount.gt(0)) {
+                    orderRefund = orderRefund.plus(refundAmount);
+                }
+            } catch {
+                // Bỏ qua dữ liệu amount không hợp lệ.
+            }
+        }
+
+        const orderSpend = new Prisma.Decimal(order.totalAmount)
+            .minus(orderRefund);
+
+        // Không để một đơn có số tiền hoàn vượt giá trị đơn
+        // làm giảm tổng chi tiêu của khách xuống mức âm.
+        totalSpend = totalSpend.plus(
+            Prisma.Decimal.max(orderSpend, 0)
+        );
+    }
+
+    const currentTierIndex = MEMBERSHIP_TIERS.reduce(
+        (currentIndex, tier, index) => {
+            return totalSpend.gte(tier.minSpend)
+                ? index
+                : currentIndex;
+        },
+        0
+    );
+
+    const currentTier = MEMBERSHIP_TIERS[currentTierIndex];
+    const nextTier = MEMBERSHIP_TIERS[currentTierIndex + 1] ?? null;
+
+    const currentThreshold = new Prisma.Decimal(currentTier.minSpend);
+    const nextThreshold = nextTier
+        ? new Prisma.Decimal(nextTier.minSpend)
+        : null;
+
+    const remainingAmount = nextThreshold
+        ? Prisma.Decimal.max(nextThreshold.minus(totalSpend), 0)
+        : new Prisma.Decimal(0);
+
+    const progress = nextTier
+        ? Math.min(
+            100,
+            Math.max(
+                0,
+                Number(
+                    totalSpend
+                        .minus(currentThreshold)
+                        .div(nextThreshold.minus(currentThreshold))
+                        .mul(100)
+                        .toFixed(2)
+                )
+            )
+        )
+        : 100;
+
+    return {
+        totalSpend: totalSpend.toFixed(2),
+        purchaseCount: orders.length,
+
+        currentTier: {
+            key: currentTier.key,
+            name: currentTier.name,
+            minSpend: String(currentTier.minSpend),
+            image: currentTier.image,
+        },
+
+        nextTier: nextTier
+            ? {
+                key: nextTier.key,
+                name: nextTier.name,
+                minSpend: String(nextTier.minSpend),
+            }
+            : null,
+
+        remainingAmount: remainingAmount.toFixed(2),
+        progress,
+
+        isMaxTier: !nextTier,
+
+        benefits: [
+            {
+                title: "Ưu đãi dành riêng cho thành viên",
+                description: "Các chương trình ưu đãi theo hạng thành viên.",
+                status: "COMING_SOON",
+            },
+            {
+                title: "Ưu đãi sinh nhật",
+                description: "Quà tặng và ưu đãi trong dịp sinh nhật.",
+                status: "COMING_SOON",
+            },
+            {
+                title: "Chương trình chăm sóc thành viên",
+                description: "Các quyền lợi chăm sóc khách hàng theo hạng.",
+                status: "COMING_SOON",
+            },
+        ],
+    };
+}
+
+// ==========================================
 // UPDATE MEMBER STATUS
 // ==========================================
 
@@ -496,4 +688,5 @@ module.exports = {
     getMemberStats,
     getMemberById,
     updateMemberStatus,
+    getMyMembership,
 };

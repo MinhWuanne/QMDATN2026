@@ -24,7 +24,17 @@ const paginationSchema = {
 // CREATE ORDER
 // ==========================================
 
+
 const createOrderSchema = z.object({
+    // Danh sách CartItem được Customer chọn để thanh toán
+    selectedCartItemIds: z.array(uuidSchema)
+        .min(1, "Vui lòng chọn ít nhất một sản phẩm")
+        .max(100, "Số lượng sản phẩm được chọn vượt quá giới hạn")
+        .refine(
+            (ids) => new Set(ids).size === ids.length,
+            "Danh sách sản phẩm không được trùng lặp"
+        ),
+
     paymentMethod: z.enum(["COD", "VNPAY"], {
         errorMap: () => ({
             message: "Phương thức thanh toán không hợp lệ",
@@ -46,7 +56,70 @@ const createOrderSchema = z.object({
         .trim()
         .min(8)
         .max(20)
-        .regex(/^[0-9+()\-\s]+$/, "Số điện thoại không hợp lệ"),
+        .regex(/^[0-9+()\-\\s]+$/, "Số điện thoại không hợp lệ"),
+
+    shippingProvinceCity: z.string()
+        .trim()
+        .min(1)
+        .max(150),
+
+    shippingDistrict: z.string()
+        .trim()
+        .min(1)
+        .max(150),
+
+    shippingStreet: z.string()
+        .trim()
+        .min(1)
+        .max(255),
+
+    shippingAddressNote: z.string()
+        .trim()
+        .max(1000)
+        .nullable()
+        .optional(),
+
+    customerNote: z.string()
+        .trim()
+        .max(2000)
+        .nullable()
+        .optional(),
+}).strict();
+
+// ==========================================
+// CREATE BUY NOW ORDER
+// ==========================================
+
+const buyNowOrderSchema = z.object({
+    variantId: uuidSchema,
+
+    quantity: z.coerce.number()
+        .int("Số lượng phải là số nguyên")
+        .min(1, "Số lượng tối thiểu là 1")
+        .max(100, "Số lượng vượt quá giới hạn"),
+
+    paymentMethod: z.enum(["COD", "VNPAY"], {
+        errorMap: () => ({
+            message: "Phương thức thanh toán không hợp lệ",
+        }),
+    }),
+
+    voucherCode: z.string()
+        .trim()
+        .min(1)
+        .max(50)
+        .optional(),
+
+    shippingRecipientName: z.string()
+        .trim()
+        .min(2)
+        .max(150),
+
+    shippingPhone: z.string()
+        .trim()
+        .min(8)
+        .max(20)
+        .regex(/^[0-9+()\-\\s]+$/, "Số điện thoại không hợp lệ"),
 
     shippingProvinceCity: z.string()
         .trim()
@@ -203,6 +276,7 @@ const markOrderPaidSchema = z.object({
 
 module.exports = {
     createOrderSchema,
+    buyNowOrderSchema,
     myOrderListQuerySchema,
     orderIdParamsSchema,
     cancelOrderSchema,

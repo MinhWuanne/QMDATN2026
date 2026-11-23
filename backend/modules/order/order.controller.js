@@ -45,6 +45,23 @@ async function createOrder(req, res, next) {
     }
 }
 
+async function createBuyNowOrder(req, res, next) {
+    try {
+        const order = await orderService.createBuyNowOrder(
+            req.user.id,
+            req.body
+        );
+
+        return res.status(201).json({
+            success: true,
+            message: "ORDER_CREATED",
+            data: order,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 async function startCheckout(req, res, next) {
     try {
         // Khởi tạo hoặc lấy lại phiên checkout 10 phút.
@@ -224,6 +241,7 @@ async function cancelAdminOrder(req, res, next) {
 
 module.exports = {
     createOrder,
+    createBuyNowOrder,
     listMyOrders,
     getMyOrderById,
     cancelMyOrder,

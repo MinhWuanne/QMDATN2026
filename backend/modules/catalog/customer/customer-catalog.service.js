@@ -137,6 +137,7 @@ function mapPublicProduct(product) {
                 weightGrams: variant.weightGrams,
                 images: variant.images,
                 inStock: availableQuantity > 0,
+                availableQuantity,
             };
         }),
     };

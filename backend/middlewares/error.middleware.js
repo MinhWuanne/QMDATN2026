@@ -68,6 +68,11 @@ const ERROR_STATUS_MAP = {
     // ==========================================
 
     VOUCHER_NOT_FOUND: 404,
+    VOUCHER_INACTIVE: 409,
+    VOUCHER_OUTSIDE_VALID_PERIOD: 409,
+    VOUCHER_MIN_ORDER_AMOUNT_NOT_MET: 400,
+    VOUCHER_USAGE_LIMIT_REACHED: 409,
+    VOUCHER_USER_LIMIT_REACHED: 409,
 
     VOUCHER_CODE_EXISTS: 409,
     VOUCHER_CONFLICT: 409,
@@ -142,6 +147,15 @@ const ERROR_STATUS_MAP = {
     CHAT_CONVERSATION_CLOSED: 409,
     CHAT_CONVERSATION_ALREADY_CLOSED: 409,
     CHAT_CONCURRENT_UPDATE: 409,
+
+    // ==========================================
+    // CART
+    // ==========================================
+
+    CART_ITEM_NOT_FOUND: 404,
+    CART_INSUFFICIENT_STOCK: 409,
+    CART_CONFLICT: 409,
+    CART_CONCURRENT_UPDATE: 409,
 };
 
 function errorHandler(err, req, res, next) {
@@ -160,8 +174,16 @@ function errorHandler(err, req, res, next) {
             err.message
         );
 
-    if (statusCode >= 500) {
-        console.error("Server error:", err);
+    if (
+        req.originalUrl === "/api/member/vouchers/validate" ||
+        statusCode >= 500
+    ) {
+        console.error("[VOUCHER VALIDATION ERROR]", {
+            message: err.message,
+            statusCode: err.statusCode,
+            code: err.code,
+            stack: err.stack,
+        });
     }
 
     const response = {

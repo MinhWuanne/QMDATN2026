@@ -372,3 +372,126 @@ a {
   color: #999;
   cursor: not-allowed;
 }
+
+
+.customer-login-prompt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.58);
+  backdrop-filter: blur(4px);
+}
+
+.customer-login-prompt {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  padding: 36px 30px 28px;
+  border-radius: 18px;
+  background: #fff;
+  color: #17211d;
+  text-align: center;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.2);
+  animation: customer-prompt-appear 0.2s ease-out;
+}
+
+.customer-login-prompt-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: #f3f5f4;
+  color: #53615a;
+  font-size: 25px;
+  cursor: pointer;
+}
+
+.customer-login-prompt-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 18px;
+  border-radius: 16px;
+  background: #e9f5ef;
+  color: #16834f;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.customer-login-prompt h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+  font-weight: 750;
+}
+
+.customer-login-prompt p {
+  margin: 0;
+  color: #69756e;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.customer-login-prompt-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.customer-login-prompt-actions button {
+  min-height: 46px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.customer-login-prompt-primary {
+  border: 1px solid #16834f;
+  background: #16834f;
+  color: #fff;
+}
+
+.customer-login-prompt-primary:hover {
+  background: #116b40;
+}
+
+.customer-login-prompt-secondary {
+  border: 1px solid #e1e7e3;
+  background: #fff;
+  color: #53615a;
+}
+
+.customer-login-prompt-secondary:hover {
+  background: #f5f7f6;
+}
+
+@keyframes customer-prompt-appear {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 480px) {
+  .customer-login-prompt {
+    padding: 32px 22px 24px;
+  }
+
+  .customer-login-prompt h2 {
+    font-size: 20px;
+  }
+}

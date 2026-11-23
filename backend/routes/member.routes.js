@@ -8,7 +8,7 @@ const {
 const validate = require("../middlewares/validate.middleware");
 
 const chatController = require("../modules/chat/chat.controller");
-
+const memberController = require("../modules/member/member.controller");
 const {
     chatMessageBodySchema,
     chatMessageListQuerySchema,
@@ -26,6 +26,11 @@ const router = express.Router();
 
 // All Member routes require an authenticated Customer.
 router.use(authenticate, authorize("CUSTOMER"));
+
+router.use(
+  "/vouchers",
+  require("../modules/voucher/voucher.validation.routes")
+);
 
 // ==========================================
 // CHAT
@@ -83,5 +88,7 @@ router.delete(
     validate(addressIdParamsSchema, "params"),
     addressController.deleteMyAddress
 );
+
+router.get("/membership", memberController.getMyMembership);
 
 module.exports = router;
