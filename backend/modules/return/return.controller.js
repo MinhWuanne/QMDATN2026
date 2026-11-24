@@ -1,3 +1,4 @@
+
 const returnService = require("./return.service");
 
 function respond(res, statusCode, message, data) {
@@ -10,11 +11,14 @@ function respond(res, statusCode, message, data) {
 
 async function createMyReturnRequest(req, res, next) {
     try {
+        // Một lần gửi có thể tạo nhiều ReturnRequest độc lập.
+        // Mỗi ReturnRequest tương ứng với một OrderItem.
         const data = await returnService.createReturnRequest(
             req.user.id,
             req.body
         );
-        return respond(res, 201, "RETURN_REQUEST_CREATED", data);
+
+        return respond(res, 201, "RETURN_REQUESTS_CREATED", data);
     } catch (error) {
         next(error);
     }
@@ -43,6 +47,7 @@ async function listMyReturnRequests(req, res, next) {
             req.user.id,
             res.locals.validatedQuery
         );
+
         return respond(res, 200, "RETURN_REQUESTS_RETRIEVED", data);
     } catch (error) {
         next(error);
@@ -55,6 +60,7 @@ async function getMyReturnRequest(req, res, next) {
             req.user.id,
             req.params.returnRequestId
         );
+
         return respond(res, 200, "RETURN_REQUEST_RETRIEVED", data);
     } catch (error) {
         next(error);
@@ -66,6 +72,7 @@ async function listAdminReturnRequests(req, res, next) {
         const data = await returnService.listAdminReturnRequests(
             res.locals.validatedQuery
         );
+
         return respond(res, 200, "RETURN_REQUESTS_RETRIEVED", data);
     } catch (error) {
         next(error);
@@ -77,6 +84,7 @@ async function getAdminReturnRequest(req, res, next) {
         const data = await returnService.getAdminReturnRequest(
             req.params.returnRequestId
         );
+
         return respond(res, 200, "RETURN_REQUEST_RETRIEVED", data);
     } catch (error) {
         next(error);
@@ -90,6 +98,7 @@ async function approveReturnRequest(req, res, next) {
             req.user.id,
             req.body.adminNote
         );
+
         return respond(res, 200, "RETURN_REQUEST_APPROVED", data);
     } catch (error) {
         next(error);
@@ -103,6 +112,7 @@ async function rejectReturnRequest(req, res, next) {
             req.user.id,
             req.body.rejectionReason
         );
+
         return respond(res, 200, "RETURN_REQUEST_REJECTED", data);
     } catch (error) {
         next(error);
@@ -172,6 +182,7 @@ async function confirmManualRefund(req, res, next) {
             req.user.id,
             req.body
         );
+
         return respond(res, 200, "RETURN_REFUND_CONFIRMED", data);
     } catch (error) {
         next(error);

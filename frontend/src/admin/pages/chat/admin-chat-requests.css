@@ -1,4 +1,3 @@
-
 /* =========================================================
    ADMIN CHAT — CUSTOMER SERVICE WORKSPACE
    Theme: Modern Green / Neutral Dashboard
@@ -244,7 +243,7 @@
   border-color: #b7d66b;
 }
 
-.admin-chat-search > span {
+.admin-chat-search>span {
   flex-shrink: 0;
 
   color: #92998b;
@@ -626,7 +625,7 @@
   min-width: 0;
 }
 
-.admin-chat-detail-customer > div {
+.admin-chat-detail-customer>div {
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -644,7 +643,7 @@
   white-space: nowrap;
 }
 
-.admin-chat-detail-customer > div > span {
+.admin-chat-detail-customer>div>span {
   overflow: hidden;
 
   color: #969c91;
@@ -888,7 +887,7 @@
   margin-top: 10px;
 }
 
-.admin-chat-composer-footer > span {
+.admin-chat-composer-footer>span {
   color: #a0a699;
   font-size: 10px;
 }
@@ -1287,7 +1286,7 @@
   gap: 9px;
 }
 
-.admin-chat-return-item-top > strong {
+.admin-chat-return-item-top>strong {
   min-width: 0;
 
   color: var(--acs-text);
@@ -1363,12 +1362,12 @@
    19. REQUEST LIST EMPTY STATE
 ========================================================= */
 
-.admin-chat-list-content > .admin-chat-empty {
+.admin-chat-list-content>.admin-chat-empty {
   flex: 1;
   min-height: 190px;
 }
 
-.admin-chat-list-content > .admin-chat-return-items {
+.admin-chat-list-content>.admin-chat-return-items {
   flex-shrink: 0;
 }
 
@@ -1376,8 +1375,8 @@
    20. REQUEST LIST PAGINATION
 ========================================================= */
 
-.admin-chat-return-list > .admin-chat-pagination,
-.admin-chat-profile-list > .admin-chat-pagination {
+.admin-chat-return-list>.admin-chat-pagination,
+.admin-chat-profile-list>.admin-chat-pagination {
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -1392,8 +1391,8 @@
   background: #fff;
 }
 
-.admin-chat-return-list > .admin-chat-pagination button,
-.admin-chat-profile-list > .admin-chat-pagination button {
+.admin-chat-return-list>.admin-chat-pagination button,
+.admin-chat-profile-list>.admin-chat-pagination button {
   width: 31px;
   height: 31px;
 
@@ -1410,8 +1409,11 @@
   flex-direction: column;
   gap: 19px;
 
+  width: 100%;
   min-width: 0;
-  min-height: 420px;
+  min-height: auto;
+  height: auto;
+  max-width: 100%;
 
   padding: 21px;
 
@@ -1420,12 +1422,14 @@
 
   background: var(--acs-surface);
   box-shadow: var(--acs-shadow);
+
+  box-sizing: border-box;
 }
 
 /* Detail empty state */
 
-.admin-chat-return-detail > .admin-chat-empty,
-.admin-chat-profile-detail > .admin-chat-empty {
+.admin-chat-return-detail>.admin-chat-empty,
+.admin-chat-profile-detail>.admin-chat-empty {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
@@ -1474,7 +1478,7 @@
   overflow-wrap: anywhere;
 }
 
-.admin-chat-return-detail-heading > div > span:last-child {
+.admin-chat-return-detail-heading>div>span:last-child {
   color: var(--acs-muted);
   font-size: 11px;
 }
@@ -1492,8 +1496,8 @@
   min-width: 0;
 }
 
-.admin-chat-return-summary > div,
-.admin-chat-return-readonly-grid > div {
+.admin-chat-return-summary>div,
+.admin-chat-return-readonly-grid>div {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1508,8 +1512,8 @@
   background: var(--acs-surface-soft);
 }
 
-.admin-chat-return-summary > div > span,
-.admin-chat-return-readonly-grid > div > span {
+.admin-chat-return-summary>div>span,
+.admin-chat-return-readonly-grid>div>span {
   color: var(--acs-muted);
   font-size: 10px;
   font-weight: 650;
@@ -1548,7 +1552,7 @@
   font-weight: 800;
 }
 
-.admin-chat-return-section > p {
+.admin-chat-return-section>p {
   margin: 0;
 
   color: var(--acs-text-secondary);
@@ -1574,7 +1578,7 @@
   background: #fff;
 }
 
-.admin-chat-return-product + .admin-chat-return-product {
+.admin-chat-return-product+.admin-chat-return-product {
   margin-top: 3px;
 }
 
@@ -1585,7 +1589,7 @@
   gap: 12px;
 }
 
-.admin-chat-return-product-heading > strong {
+.admin-chat-return-product-heading>strong {
   min-width: 0;
 
   color: var(--acs-text);
@@ -1594,6 +1598,24 @@
   line-height: 1.5;
 
   overflow-wrap: anywhere;
+}
+
+.admin-chat-return-product .admin-chat-return-readonly-grid {
+  gap: 9px;
+}
+
+.admin-chat-return-product .admin-chat-return-readonly-grid > div {
+  background: #f8faf6;
+}
+
+.admin-chat-return-product .admin-chat-return-readonly-grid > div:nth-child(3),
+.admin-chat-return-product .admin-chat-return-readonly-grid > div:nth-child(4) {
+  border-color: var(--acs-primary-border);
+  background: var(--acs-primary-soft);
+}
+
+.admin-chat-return-exchange-target {
+  margin-top: 2px;
 }
 
 .admin-chat-return-exchange-target {
@@ -1610,12 +1632,12 @@
   background: var(--acs-primary-soft);
 }
 
-.admin-chat-return-exchange-target > span {
+.admin-chat-return-exchange-target>span {
   color: var(--acs-text-secondary);
   font-size: 11px;
 }
 
-.admin-chat-return-exchange-target > strong {
+.admin-chat-return-exchange-target>strong {
   color: var(--acs-primary-dark);
   font-size: 12px;
   font-weight: 800;
@@ -1640,7 +1662,7 @@
   background: var(--acs-surface-soft);
 }
 
-.admin-chat-return-note > span {
+.admin-chat-return-note>span {
   color: var(--acs-text-secondary);
   font-size: 11px;
   font-weight: 750;
@@ -1674,20 +1696,20 @@
   background: var(--acs-primary-soft);
 }
 
-.admin-chat-return-refund > span {
+.admin-chat-return-refund>span {
   color: var(--acs-text-secondary);
   font-size: 11px;
   font-weight: 700;
 }
 
-.admin-chat-return-refund > strong {
+.admin-chat-return-refund>strong {
   color: var(--acs-primary-dark);
   font-size: 21px;
   font-weight: 850;
   letter-spacing: -0.4px;
 }
 
-.admin-chat-return-refund > small {
+.admin-chat-return-refund>small {
   color: var(--acs-muted);
   font-size: 10px;
 }
@@ -1822,8 +1844,8 @@
   align-self: flex-start;
 }
 
-.admin-chat-profile-list > h4,
-.admin-chat-profile-detail > h4 {
+.admin-chat-profile-list>h4,
+.admin-chat-profile-detail>h4 {
   margin: 0;
 
   color: var(--acs-text);
@@ -1831,8 +1853,8 @@
   font-weight: 800;
 }
 
-.admin-chat-profile-list > p,
-.admin-chat-profile-detail > p {
+.admin-chat-profile-list>p,
+.admin-chat-profile-detail>p {
   color: var(--acs-text-secondary);
   font-size: 12px;
   line-height: 1.6;
@@ -1848,7 +1870,7 @@
   min-width: 0;
 }
 
-.admin-chat-profile-changes > div {
+.admin-chat-profile-changes>div {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1904,15 +1926,15 @@
 
 /* List empty state */
 
-.admin-chat-list-content > .admin-chat-empty {
+.admin-chat-list-content>.admin-chat-empty {
   flex: 1;
   min-height: 190px;
 }
 
 /* Detail empty state */
 
-.admin-chat-return-detail > .admin-chat-empty,
-.admin-chat-profile-detail > .admin-chat-empty {
+.admin-chat-return-detail>.admin-chat-empty,
+.admin-chat-profile-detail>.admin-chat-empty {
   flex: 1 1 auto;
 
   min-height: 300px;
@@ -2030,6 +2052,7 @@
 ========================================================= */
 
 @media (max-width: 850px) {
+
   .admin-chat-return-layout,
   .admin-chat-profile-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -2048,8 +2071,8 @@
     min-height: 380px;
   }
 
-  .admin-chat-return-detail > .admin-chat-empty,
-  .admin-chat-profile-detail > .admin-chat-empty {
+  .admin-chat-return-detail>.admin-chat-empty,
+  .admin-chat-profile-detail>.admin-chat-empty {
     min-height: 300px;
   }
 }
@@ -2167,7 +2190,7 @@
     gap: 8px;
   }
 
-  .admin-chat-composer-footer > span {
+  .admin-chat-composer-footer>span {
     max-width: 60%;
     line-height: 1.5;
   }
@@ -2215,7 +2238,7 @@
   .admin-chat-return-summary,
   .admin-chat-return-readonly-grid,
   .admin-chat-profile-changes {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .admin-chat-return-detail-heading,
@@ -2264,7 +2287,7 @@
     max-width: 92%;
   }
 
-  .admin-chat-composer-footer > span {
+  .admin-chat-composer-footer>span {
     max-width: 55%;
     font-size: 9px;
   }
@@ -2295,6 +2318,7 @@
 ========================================================= */
 
 @media (prefers-reduced-motion: reduce) {
+
   .admin-chat-page *,
   .admin-chat-page *::before,
   .admin-chat-page *::after {
@@ -2303,4 +2327,64 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* =========================================================
+   PROFILE DETAIL - CONTENT OVERFLOW FIX
+========================================================= */
+
+.admin-chat-profile-detail {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  box-sizing: border-box;
+}
+
+.admin-chat-profile-detail > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-chat-profile-detail .admin-chat-return-detail-heading {
+  flex-wrap: wrap;
+}
+
+.admin-chat-profile-detail .admin-chat-return-detail-heading > div {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.admin-chat-profile-detail .admin-chat-return-badge {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.admin-chat-profile-detail .admin-chat-profile-changes > div,
+.admin-chat-profile-detail .admin-chat-return-readonly-grid > div {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.admin-chat-profile-detail .admin-chat-return-section strong,
+.admin-chat-profile-detail .admin-chat-return-section span,
+.admin-chat-profile-detail .admin-chat-return-note p {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.admin-chat-profile-detail .admin-chat-return-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.admin-chat-profile-detail .admin-chat-return-actions button {
+  max-width: 100%;
+  white-space: normal;
 }

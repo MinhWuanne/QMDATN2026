@@ -61,6 +61,26 @@ function formatTime(value) {
   }).format(date);
 }
 
+function normalizeListResponse(result) {
+  const items = Array.isArray(result?.items)
+    ? result.items
+    : Array.isArray(result?.requests)
+      ? result.requests
+      : Array.isArray(result?.data)
+        ? result.data
+        : Array.isArray(result?.data?.data)
+          ? result.data.data
+          : [];
+
+  return {
+    items,
+    pagination:
+      result?.pagination ??
+      result?.data?.pagination ??
+      null,
+  };
+}
+
 function formatConversationTime(value) {
   if (!value) return "";
 
@@ -229,6 +249,8 @@ export default function AdminChatPage({
   const messagesEndRef = useRef(null);
   const messageListRef = useRef(null);
   const selectedIdRef = useRef(selectedId);
+  const messagesRequestRef = useRef(0);
+  const olderMessagesRequestRef = useRef(0);
   const returnCustomerIdRef = useRef(null);
 
   const returnListRequestRef = useRef(0);
@@ -309,15 +331,18 @@ export default function AdminChatPage({
         onSessionUpdate
       );
 
-      setConversations(result.items || []);
-      setPagination(result.pagination || {
+      const { items, pagination: responsePagination } =
+        normalizeListResponse(result);
+
+      setConversations(items);
+      setPagination(responsePagination || {
         page,
         limit: PAGE_SIZE,
-        total: 0,
-        totalPages: 0,
+        total: items.length,
+        totalPages: items.length ? 1 : 0,
       });
 
-      return result.items || [];
+      return items;
     } catch (err) {
       handleError(err);
       return null;
@@ -336,6 +361,8 @@ export default function AdminChatPage({
     conversationId,
     { silent = false } = {}
   ) => {
+    const requestId = ++messagesRequestRef.current;
+
     if (!silent) setMessagesLoading(true);
 
     try {
@@ -346,7 +373,12 @@ export default function AdminChatPage({
         onSessionUpdate
       );
 
-      if (selectedIdRef.current !== conversationId) return null;
+      if (
+        requestId !== messagesRequestRef.current ||
+        selectedIdRef.current !== conversationId
+      ) {
+        return null;
+      }
 
       const data = result.data || {};
 
@@ -356,10 +388,18 @@ export default function AdminChatPage({
 
       return data;
     } catch (err) {
-      handleError(err);
+      if (
+        requestId === messagesRequestRef.current &&
+        selectedIdRef.current === conversationId
+      ) {
+        handleError(err);
+      }
+
       return null;
     } finally {
-      if (!silent) setMessagesLoading(false);
+      if (requestId === messagesRequestRef.current) {
+        setMessagesLoading(false);
+      }
     }
   }, [accessToken, handleError, onSessionUpdate]);
 
@@ -408,10 +448,11 @@ export default function AdminChatPage({
         return null;
       }
 
-      const items = result.items || result.requests || [];
+      const { items, pagination: responsePagination } =
+        normalizeListResponse(result);
 
       setReturnRequests(items);
-      setReturnPagination(result.pagination || {
+      setReturnPagination(responsePagination || {
         page,
         limit: RETURN_PAGE_SIZE,
         total: items.length,
@@ -526,10 +567,11 @@ export default function AdminChatPage({
 
       // API hồ sơ hiện tại không có bộ lọc customerId.
       // Chỉ hiển thị yêu cầu thuộc khách hàng đang được chọn trong Chat.
-      const items = result.items || [];
+      const { items, pagination: responsePagination } =
+        normalizeListResponse(result);
 
       setProfileRequests(items);
-      setProfilePagination(result.pagination || {
+      setProfilePagination(responsePagination || {
         page,
         limit: RETURN_PAGE_SIZE,
         total: items.length,
@@ -766,6 +808,14 @@ export default function AdminChatPage({
 
   async function handleSelectConversation(conversation) {
     setError("");
+
+    // Vô hiệu hóa request tin nhắn của hội thoại trước.
+    messagesRequestRef.current += 1;
+    selectedIdRef.current = conversation.id;
+    olderMessagesRequestRef.current += 1;
+    setOlderLoading(false);
+
+    setMessagesLoading(false);
     setSelectedId(conversation.id);
     setDetailView("messages");
     setReturnRequests([]);
@@ -853,6 +903,10 @@ export default function AdminChatPage({
   async function handleLoadOlderMessages() {
     if (!selectedId || !nextCursor || olderLoading) return;
 
+    const conversationId = selectedId;
+    const cursor = nextCursor;
+    const requestId = ++olderMessagesRequestRef.current;
+
     setOlderLoading(true);
 
     const container = messageListRef.current;
@@ -860,16 +914,21 @@ export default function AdminChatPage({
 
     try {
       const result = await adminChatService.getMessages(
-        selectedId,
+        conversationId,
         {
           limit: MESSAGE_LIMIT,
-          cursor: nextCursor,
+          cursor,
         },
         accessToken,
         onSessionUpdate
       );
 
-      if (selectedIdRef.current !== selectedId) return;
+      if (
+        requestId !== olderMessagesRequestRef.current ||
+        selectedIdRef.current !== conversationId
+      ) {
+        return;
+      }
 
       const data = result.data || {};
 
@@ -881,7 +940,13 @@ export default function AdminChatPage({
       setNextCursor(data.nextCursor || null);
 
       requestAnimationFrame(() => {
-        if (!container) return;
+        if (
+          !container ||
+          selectedIdRef.current !== conversationId ||
+          requestId !== olderMessagesRequestRef.current
+        ) {
+          return;
+        }
 
         const heightDifference =
           container.scrollHeight - previousHeight;
@@ -889,9 +954,16 @@ export default function AdminChatPage({
         container.scrollTop += heightDifference;
       });
     } catch (err) {
-      handleError(err);
+      if (
+        requestId === olderMessagesRequestRef.current &&
+        selectedIdRef.current === conversationId
+      ) {
+        handleError(err);
+      }
     } finally {
-      setOlderLoading(false);
+      if (requestId === olderMessagesRequestRef.current) {
+        setOlderLoading(false);
+      }
     }
   }
 
@@ -1548,6 +1620,11 @@ export default function AdminChatPage({
                                   </span>
 
                                   <span className="admin-chat-return-item-meta">
+                                    {getReturnItems(request)[0]?.orderItem?.productName ||
+                                      "Sản phẩm trong đơn hàng"}
+                                  </span>
+
+                                  <span className="admin-chat-return-item-meta">
                                     {RETURN_TYPE_LABELS[request.type] || request.type}
                                     {" · "}
                                     {RETURN_RESOLUTION_LABELS[request.resolution] ||
@@ -2018,8 +2095,8 @@ export default function AdminChatPage({
                                   type="button"
                                   key={request.id}
                                   className={`admin-chat-return-item ${selectedProfileRequestId === request.id
-                                      ? "selected"
-                                      : ""
+                                    ? "selected"
+                                    : ""
                                     }`}
                                   onClick={() =>
                                     handleSelectProfileRequest(request)

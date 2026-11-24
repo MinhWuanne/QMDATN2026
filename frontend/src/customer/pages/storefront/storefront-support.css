@@ -828,6 +828,8 @@
     background: #f8faef;
 }
 
+
+
 .store-support-selected-item > span {
     color: #7e8b6c;
     font-size: 9px;
@@ -847,6 +849,36 @@
     color: #778174;
     font-size: 9px;
     line-height: 1.6;
+}
+
+/* Return form typography */
+.store-support-selected-item {
+    font-size: 11px;
+}
+
+.store-support-selected-item > label {
+    font-size: 11px;
+}
+
+.store-support-selected-item > label > span,
+.store-support-selected-item .store-support-field-title {
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.store-support-selected-item input,
+.store-support-selected-item select,
+.store-support-selected-item textarea {
+    font-family: inherit;
+    font-size: 11px;
+}
+
+.store-support-selected-item .store-support-resolution-options strong {
+    font-size: 11px;
+}
+
+.store-support-selected-item .store-support-resolution-options small {
+    font-size: 9px;
 }
 
 /* Exchange variant */
@@ -1066,8 +1098,9 @@
 
 .store-support-request {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
 
     padding: 13px;
 
@@ -1075,6 +1108,82 @@
     border-radius: 7px;
 
     background: white;
+}
+
+/* Selected order items - refined layout */
+.store-support-request {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid #e8ece3;
+    border-radius: 8px;
+    background: #fff;
+    transition: border-color .18s ease, background .18s ease;
+}
+
+.store-support-request:hover {
+    border-color: #cbd9a9;
+    background: #fbfcf7;
+}
+
+.store-support-request.active {
+    border-color: #a9c46a;
+    background: #f8faef;
+}
+
+.store-support-request > input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    flex: 0 0 16px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.store-support-request > span {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    gap: 5px;
+}
+
+.store-support-request > span > strong {
+    color: #293326;
+    font-size: 11px;
+    font-weight: 750;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.store-support-request > span > small {
+    color: #788174;
+    font-size: 9px;
+    font-weight: 450;
+    line-height: 1.5;
+}
+
+.store-support-request > span > small + small {
+    color: #596451;
+}
+
+.store-support-request > input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    flex: 0 0 16px;
+    margin: 2px 0 0;
+    padding: 0;
+    accent-color: #6f9147;
+    cursor: pointer;
+}
+
+.store-support-request > span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 4px;
 }
 
 .store-support-request-top {

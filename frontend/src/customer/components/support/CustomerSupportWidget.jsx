@@ -50,19 +50,12 @@ export default function CustomerSupportWidget({
     const [returnError, setReturnError] = useState("");
     const [returnNotice, setReturnNotice] = useState("");
 
-    const [exchangeVariants, setExchangeVariants] = useState([]);
-    const [exchangeVariantsLoading, setExchangeVariantsLoading] = useState(false);
-    const [exchangeVariantsError, setExchangeVariantsError] = useState("");
+    const [selectedReturnItems, setSelectedReturnItems] = useState([]);
+    const [selectedReturnOrderId, setSelectedReturnOrderId] = useState("");
 
-    const [returnForm, setReturnForm] = useState({
-        orderId: "",
-        orderItemId: "",
-        quantity: 1,
-        resolution: "REFUND",
-        exchangeVariantId: "",
-        reason: "",
-        customerNote: "",
-    });
+    const [exchangeVariantsByItem, setExchangeVariantsByItem] = useState({});
+    const [exchangeVariantsLoading, setExchangeVariantsLoading] = useState({});
+    const [exchangeVariantsError, setExchangeVariantsError] = useState({});
 
     // Profile
     const [profileRequests, setProfileRequests] = useState([]);
@@ -103,72 +96,92 @@ export default function CustomerSupportWidget({
     useEffect(() => {
         let cancelled = false;
 
-        const selectedOrder = memberOrders.find(
-            (order) => order.id === returnForm.orderId
-        );
+        async function loadVariants() {
+            const exchangeItems = selectedReturnItems.filter(
+                (item) => item.resolution === "EXCHANGE"
+            );
 
-        const selectedItem = selectedOrder?.items?.find(
-            (item) => item.id === returnForm.orderItemId
-        );
-
-        if (
-            returnForm.resolution !== "EXCHANGE" ||
-            !selectedItem?.productId
-        ) {
-            setExchangeVariants([]);
-            setExchangeVariantsError("");
-            setExchangeVariantsLoading(false);
-
-            return () => {
-                cancelled = true;
-            };
-        }
-
-        async function loadExchangeVariants() {
-            setExchangeVariantsLoading(true);
-            setExchangeVariantsError("");
-            setExchangeVariants([]);
-
-            try {
-                const productResult = await getCustomerCatalogProduct(
-                    selectedItem.productId
-                );
-
-                if (cancelled) return;
-
-                const variants = Array.isArray(productResult?.data?.variants)
-                    ? productResult.data.variants
-                    : [];
-
-                setExchangeVariants(
-                    variants.filter(
-                        (variant) => variant.id !== selectedItem.variantId
-                    )
-                );
-            } catch (error) {
-                if (!cancelled) {
-                    setExchangeVariantsError(
-                        error.message || "Không thể tải các phiên bản có thể đổi."
-                    );
-                }
-            } finally {
-                if (!cancelled) {
-                    setExchangeVariantsLoading(false);
-                }
+            if (exchangeItems.length === 0) {
+                setExchangeVariantsByItem({});
+                setExchangeVariantsLoading({});
+                setExchangeVariantsError({});
+                return;
             }
+
+            const selectedOrder = memberOrders.find(
+                (order) => order.id === selectedReturnOrderId
+            );
+
+            const loadingMap = {};
+            const variantsMap = {};
+            const errorsMap = {};
+
+            for (const item of exchangeItems) {
+                loadingMap[item.orderItemId] = true;
+            }
+
+            setExchangeVariantsLoading(loadingMap);
+            setExchangeVariantsError({});
+
+            const results = await Promise.all(
+                exchangeItems.map(async (returnItem) => {
+                    const orderItem = selectedOrder?.items?.find(
+                        (item) => item.id === returnItem.orderItemId
+                    );
+
+                    if (!orderItem?.productId) {
+                        return {
+                            orderItemId: returnItem.orderItemId,
+                            variants: [],
+                            error: "Không xác định được sản phẩm.",
+                        };
+                    }
+
+                    try {
+                        const result = await getCustomerCatalogProduct(
+                            orderItem.productId
+                        );
+
+                        const variants = Array.isArray(result?.data?.variants)
+                            ? result.data.variants.filter(
+                                (variant) => variant.id !== orderItem.variantId
+                            )
+                            : [];
+
+                        return {
+                            orderItemId: returnItem.orderItemId,
+                            variants,
+                            error: "",
+                        };
+                    } catch (error) {
+                        return {
+                            orderItemId: returnItem.orderItemId,
+                            variants: [],
+                            error: error.message || "Không thể tải phiên bản đổi.",
+                        };
+                    }
+                })
+            );
+
+            if (cancelled) return;
+
+            for (const result of results) {
+                variantsMap[result.orderItemId] = result.variants;
+                errorsMap[result.orderItemId] = result.error;
+                loadingMap[result.orderItemId] = false;
+            }
+
+            setExchangeVariantsByItem(variantsMap);
+            setExchangeVariantsError(errorsMap);
+            setExchangeVariantsLoading(loadingMap);
         }
 
-        loadExchangeVariants();
+        loadVariants();
 
         return () => {
             cancelled = true;
         };
-    }, [
-        memberOrders,
-        returnForm.orderId,
-        returnForm.orderItemId,
-        returnForm.resolution,
-    ]);
+    }, [selectedReturnItems, selectedReturnOrderId, memberOrders]);
 
     function formatChatTime(value) {
         if (!value) return "";
@@ -294,12 +307,64 @@ export default function CustomerSupportWidget({
     }
 
     const selectedReturnOrder = memberOrders.find(
-        (order) => order.id === returnForm.orderId
+        (order) => order.id === selectedReturnOrderId
     );
 
-    const selectedReturnItem = selectedReturnOrder?.items?.find(
-        (item) => item.id === returnForm.orderItemId
-    );
+    function getReturnItemDraft(orderItemId) {
+        return selectedReturnItems.find(
+            (item) => item.orderItemId === orderItemId
+        );
+    }
+
+    function toggleReturnItem(orderItem) {
+        setReturnError("");
+        setReturnNotice("");
+
+        setSelectedReturnItems((current) => {
+            const exists = current.some(
+                (item) => item.orderItemId === orderItem.id
+            );
+
+            if (exists) {
+                return current.filter(
+                    (item) => item.orderItemId !== orderItem.id
+                );
+            }
+
+            return [
+                ...current,
+                {
+                    orderItemId: orderItem.id,
+                    quantity: 1,
+                    resolution: "REFUND",
+                    exchangeVariantId: "",
+                    reason: "",
+                    customerNote: "",
+                },
+            ];
+        });
+    }
+
+    function updateReturnItem(orderItemId, changes) {
+        setSelectedReturnItems((current) =>
+            current.map((item) =>
+                item.orderItemId === orderItemId
+                    ? { ...item, ...changes }
+                    : item
+            )
+        );
+
+        setReturnError("");
+    }
+
+    function changeReturnOrder(orderId) {
+        setSelectedReturnOrderId(orderId);
+        setSelectedReturnItems([]);
+        setExchangeVariantsByItem({});
+        setExchangeVariantsError({});
+        setReturnError("");
+        setReturnNotice("");
+    }
 
     async function loadReturnData() {
         if (!user || !accessToken) return;
@@ -340,29 +405,44 @@ export default function CustomerSupportWidget({
 
         if (returnSubmitting) return;
 
-        if (!returnForm.orderId || !returnForm.orderItemId) {
-            setReturnError("Vui lòng chọn đơn hàng và sản phẩm cần đổi/trả.");
+        if (!selectedReturnOrderId) {
+            setReturnError("Vui lòng chọn đơn hàng.");
             return;
         }
 
-        if (
-            !Number.isSafeInteger(Number(returnForm.quantity)) ||
-            Number(returnForm.quantity) < 1
-        ) {
-            setReturnError("Số lượng yêu cầu không hợp lệ.");
+        if (selectedReturnItems.length === 0) {
+            setReturnError("Vui lòng chọn ít nhất một sản phẩm cần đổi/trả.");
             return;
         }
 
-        if (returnForm.reason.trim().length < 3) {
-            setReturnError("Lý do cần có ít nhất 3 ký tự.");
-            return;
-        }
+        const invalidItem = selectedReturnItems.find((item) => {
+            const orderItem = selectedReturnOrder?.items?.find(
+                (candidate) => candidate.id === item.orderItemId
+            );
 
-        if (
-            returnForm.resolution === "EXCHANGE" &&
-            !returnForm.exchangeVariantId
-        ) {
-            setReturnError("Vui lòng chọn phiên bản muốn đổi.");
+            return (
+                !orderItem ||
+                !Number.isSafeInteger(Number(item.quantity)) ||
+                Number(item.quantity) < 1 ||
+                Number(item.quantity) > Number(orderItem.quantity) ||
+                !item.reason.trim() ||
+                item.reason.trim().length < 3 ||
+                (
+                    item.resolution === "EXCHANGE" &&
+                    (
+                        !item.exchangeVariantId ||
+                        !(exchangeVariantsByItem[item.orderItemId] || []).some(
+                            (variant) => variant.id === item.exchangeVariantId
+                        )
+                    )
+                )
+            );
+        });
+
+        if (invalidItem) {
+            setReturnError(
+                "Vui lòng kiểm tra số lượng, lý do và phiên bản đổi của từng sản phẩm."
+            );
             return;
         }
 
@@ -371,37 +451,34 @@ export default function CustomerSupportWidget({
         setReturnNotice("");
 
         try {
-            await createMemberReturnRequest({
-                orderId: returnForm.orderId,
-                orderItemId: returnForm.orderItemId,
-                quantity: Number(returnForm.quantity),
-                resolution: returnForm.resolution,
-                reason: returnForm.reason.trim(),
-                customerNote: returnForm.customerNote.trim() || undefined,
-                exchangeVariantId:
-                    returnForm.resolution === "EXCHANGE"
-                        ? returnForm.exchangeVariantId
-                        : undefined,
+            const payload = {
+                orderId: selectedReturnOrderId,
+                items: selectedReturnItems.map((item) => ({
+                    orderItemId: item.orderItemId,
+                    quantity: Number(item.quantity),
+                    resolution: item.resolution,
+                    reason: item.reason.trim(),
+                    customerNote: item.customerNote.trim() || undefined,
+                    exchangeVariantId:
+                        item.resolution === "EXCHANGE"
+                            ? item.exchangeVariantId
+                            : undefined,
+                })),
                 accessToken: chatTokenRef.current,
                 onSessionRefresh: refreshChatSession,
                 onSessionExpired,
-            });
+            };
+
+            await createMemberReturnRequest(payload);
 
             setReturnNotice(
-                returnForm.resolution === "EXCHANGE"
-                    ? "Đã gửi yêu cầu đổi phiên bản. Bạn có thể theo dõi trạng thái bên dưới."
-                    : "Đã gửi yêu cầu hoàn tiền. Bạn có thể theo dõi trạng thái bên dưới."
+                `Đã gửi thành công ${selectedReturnItems.length} yêu cầu đổi/trả. Mỗi sản phẩm sẽ được cửa hàng xử lý riêng.`
             );
 
-            setReturnForm({
-                orderId: "",
-                orderItemId: "",
-                quantity: 1,
-                resolution: "REFUND",
-                exchangeVariantId: "",
-                reason: "",
-                customerNote: "",
-            });
+            setSelectedReturnOrderId("");
+            setSelectedReturnItems([]);
+            setExchangeVariantsByItem({});
+            setExchangeVariantsError({});
 
             await loadReturnData();
         } catch (error) {
@@ -412,7 +489,6 @@ export default function CustomerSupportWidget({
             setReturnSubmitting(false);
         }
     }
-
 
     async function loadProfileRequests() {
         if (!user || !accessToken) return;
@@ -501,12 +577,13 @@ export default function CustomerSupportWidget({
     function getRequestStatusLabel(status) {
         const labels = {
             REQUESTED: "Đang chờ duyệt",
-            PENDING: "Đang chờ xử lý",
             APPROVED: "Đã chấp thuận",
             REJECTED: "Đã từ chối",
-            PROCESSING: "Đang xử lý",
+            INSPECTING: "Đang kiểm tra sản phẩm",
+            REFUND_PENDING: "Chờ hoàn tiền",
+            WAITING_FOR_STOCK: "Chờ bổ sung hàng",
+            REPLACEMENT_PENDING: "Đang chuẩn bị hàng đổi",
             COMPLETED: "Đã hoàn tất",
-            REFUNDED: "Đã hoàn tiền",
             CANCELLED: "Đã hủy",
         };
 
@@ -737,18 +814,8 @@ export default function CustomerSupportWidget({
                                 <label>
                                     <span>Đơn hàng <b>*</b></span>
                                     <select
-                                        value={returnForm.orderId}
-                                        onChange={(event) => {
-                                            setReturnForm((current) => ({
-                                                ...current,
-                                                orderId: event.target.value,
-                                                orderItemId: "",
-                                                quantity: 1,
-                                                exchangeVariantId: "",
-                                            }));
-                                            setReturnError("");
-                                            setReturnNotice("");
-                                        }}
+                                        value={selectedReturnOrderId}
+                                        onChange={(event) => changeReturnOrder(event.target.value)}
                                         required
                                         disabled={
                                             returnLoading ||
@@ -766,261 +833,251 @@ export default function CustomerSupportWidget({
                                     </select>
                                 </label>
 
-                                <label>
-                                    <span> Sản phẩm cần đổi / trả <b>*</b></span>
-                                    <select
-                                        value={returnForm.orderItemId}
-                                        onChange={(event) => {
-                                            setReturnForm((current) => ({
-                                                ...current,
-                                                orderItemId: event.target.value,
-                                                quantity: 1,
-                                                exchangeVariantId: "",
-                                            }));
-                                            setReturnError("");
-                                        }}
-                                        required
-                                        disabled={!selectedReturnOrder || returnSubmitting}
-                                    >
-                                        <option value="">-- Chọn sản phẩm --</option>
-                                        {(selectedReturnOrder?.items || []).map((item) => (
-                                            <option key={item.id} value={item.id}>
-                                                {getOrderItemLabel(item)} · SL: {item.quantity}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-
-                                {selectedReturnItem && (
-                                    <div className="store-support-resolution">
-                                        <span className="store-support-field-title">
-                                            Bạn muốn thực hiện yêu cầu nào? <b>*</b>
-                                        </span>
-
-                                        <div className="store-support-resolution-options">
-                                            <label className={returnForm.resolution === "REFUND" ? "active" : ""}>
-                                                <input
-                                                    type="radio"
-                                                    name="returnResolution"
-                                                    value="REFUND"
-                                                    checked={returnForm.resolution === "REFUND"}
-                                                    onChange={() => setReturnForm((current) => ({
-                                                        ...current,
-                                                        resolution: "REFUND",
-                                                        exchangeVariantId: "",
-                                                    }))}
-                                                    disabled={returnSubmitting}
-                                                />
-                                                <span>
-                                                    <strong>Hoàn tiền</strong>
-                                                    <small>
-                                                        Nhận lại tiền theo giá trị sản phẩm được duyệt
-                                                    </small>
-                                                </span>
-                                            </label>
-
-                                            <label className={returnForm.resolution === "EXCHANGE" ? "active" : ""}>
-                                                <input
-                                                    type="radio"
-                                                    name="returnResolution"
-                                                    value="EXCHANGE"
-                                                    checked={returnForm.resolution === "EXCHANGE"}
-                                                    onChange={() => setReturnForm((current) => ({
-                                                        ...current,
-                                                        resolution: "EXCHANGE",
-                                                        exchangeVariantId: "",
-                                                    }))}
-                                                    disabled={returnSubmitting}
-                                                />
-                                                <span>
-                                                    <strong>Đổi phiên bản</strong>
-                                                    <small>
-                                                        Đổi sang màu hoặc phiên bản khác của cùng sản phẩm
-                                                    </small>
-                                                </span>
-                                            </label>
-                                        </div>
-
+                                {selectedReturnOrder && (
+                                    <>
                                         <div className="store-support-choice-group">
                                             <div className="store-support-choice-title">
-                                                {returnForm.resolution === "EXCHANGE"
-                                                    ? "Lý do bạn muốn đổi hàng?"
-                                                    : "Lý do bạn muốn hoàn tiền?"}
+                                                Chọn sản phẩm cần đổi / trả
                                             </div>
 
-                                            <div className="store-support-choice-list">
-                                                {[
-                                                    "Sản phẩm bị lỗi hoặc hư hỏng",
-                                                    "Nhận sai sản phẩm hoặc phiên bản",
-                                                    "Sản phẩm không giống mô tả",
-                                                    "Muốn đổi màu sắc hoặc phiên bản khác",
-                                                    "Lý do khác",
-                                                ].map((reason) => (
-                                                    <button
-                                                        key={reason}
-                                                        type="button"
-                                                        className={`store-support-choice-button ${returnForm.reason === reason ? "active" : ""
-                                                            }`}
-                                                        onClick={() =>
-                                                            setReturnForm((current) => ({
-                                                                ...current,
-                                                                reason: reason === "Lý do khác" ? "" : reason,
-                                                            }))
-                                                        }
-                                                        disabled={returnSubmitting}
-                                                    >
-                                                        {reason}
-                                                    </button>
-                                                ))}
+                                            <p className="store-support-hint">
+                                                Bạn có thể chọn nhiều sản phẩm trong cùng một đơn hàng.
+                                                Mỗi sản phẩm sẽ tạo một yêu cầu riêng.
+                                            </p>
+
+                                            <div className="store-support-request-list">
+                                                {(selectedReturnOrder.items || []).map((orderItem) => {
+                                                    const selected = !!getReturnItemDraft(orderItem.id);
+
+                                                    return (
+                                                        <label
+                                                            key={orderItem.id}
+                                                            className={`store-support-request ${selected ? "active" : ""}`}
+                                                            style={{
+                                                                display: "flex",
+                                                                alignItems: "flex-start",
+                                                                gap: 10,
+                                                                cursor: "pointer",
+                                                            }}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selected}
+                                                                onChange={() => toggleReturnItem(orderItem)}
+                                                                disabled={returnSubmitting}
+                                                            />
+
+                                                            <span>
+                                                                <strong>
+                                                                    {getOrderItemLabel(orderItem)}
+                                                                </strong>
+                                                                <small>
+                                                                    Số lượng trong đơn: {orderItem.quantity}
+                                                                </small>
+                                                                {orderItem.unitPrice != null && (
+                                                                    <small>
+                                                                        Đơn giá: {formatSupportMoney(orderItem.unitPrice)}
+                                                                    </small>
+                                                                )}
+                                                            </span>
+                                                        </label>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
-                                    </div>
+
+                                        {selectedReturnItems.map((draft) => {
+                                            const orderItem = selectedReturnOrder.items?.find(
+                                                (item) => item.id === draft.orderItemId
+                                            );
+
+                                            if (!orderItem) return null;
+
+                                            const variants =
+                                                exchangeVariantsByItem[draft.orderItemId] || [];
+
+                                            return (
+                                                <section
+                                                    key={draft.orderItemId}
+                                                    className="store-support-selected-item"
+                                                >
+                                                    <strong>{getOrderItemLabel(orderItem)}</strong>
+
+                                                    <label>
+                                                        <span>Số lượng cần đổi / trả <b>*</b></span>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            max={orderItem.quantity}
+                                                            step="1"
+                                                            value={draft.quantity}
+                                                            onChange={(event) =>
+                                                                updateReturnItem(draft.orderItemId, {
+                                                                    quantity: event.target.value,
+                                                                })
+                                                            }
+                                                            required
+                                                            disabled={returnSubmitting}
+                                                        />
+                                                    </label>
+
+                                                    <div className="store-support-resolution">
+                                                        <span className="store-support-field-title">
+                                                            Hình thức xử lý <b>*</b>
+                                                        </span>
+
+                                                        <div className="store-support-resolution-options">
+                                                            <label className={draft.resolution === "REFUND" ? "active" : ""}>
+                                                                <input
+                                                                    type="radio"
+                                                                    name={`resolution-${draft.orderItemId}`}
+                                                                    value="REFUND"
+                                                                    checked={draft.resolution === "REFUND"}
+                                                                    onChange={() =>
+                                                                        updateReturnItem(draft.orderItemId, {
+                                                                            resolution: "REFUND",
+                                                                            exchangeVariantId: "",
+                                                                        })
+                                                                    }
+                                                                    disabled={returnSubmitting}
+                                                                />
+                                                                <span>
+                                                                    <strong>Hoàn tiền</strong>
+                                                                    <small>Nhận lại tiền theo giá trị được duyệt</small>
+                                                                </span>
+                                                            </label>
+
+                                                            <label className={draft.resolution === "EXCHANGE" ? "active" : ""}>
+                                                                <input
+                                                                    type="radio"
+                                                                    name={`resolution-${draft.orderItemId}`}
+                                                                    value="EXCHANGE"
+                                                                    checked={draft.resolution === "EXCHANGE"}
+                                                                    onChange={() =>
+                                                                        updateReturnItem(draft.orderItemId, {
+                                                                            resolution: "EXCHANGE",
+                                                                            exchangeVariantId: "",
+                                                                        })
+                                                                    }
+                                                                    disabled={returnSubmitting}
+                                                                />
+                                                                <span>
+                                                                    <strong>Đổi phiên bản</strong>
+                                                                    <small>Đổi sang phiên bản khác của cùng sản phẩm</small>
+                                                                </span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+
+                                                    {draft.resolution === "EXCHANGE" && (
+                                                        <label>
+                                                            <span>Phiên bản muốn đổi sang <b>*</b></span>
+                                                            <select
+                                                                value={draft.exchangeVariantId}
+                                                                onChange={(event) =>
+                                                                    updateReturnItem(draft.orderItemId, {
+                                                                        exchangeVariantId: event.target.value,
+                                                                    })
+                                                                }
+                                                                required
+                                                                disabled={
+                                                                    returnSubmitting ||
+                                                                    !!exchangeVariantsLoading[draft.orderItemId] ||
+                                                                    !!exchangeVariantsError[draft.orderItemId] ||
+                                                                    !variants.length
+                                                                }
+                                                            >
+                                                                <option value="">
+                                                                    -- Chọn phiên bản muốn đổi --
+                                                                </option>
+                                                                {variants.map((variant) => (
+                                                                    <option key={variant.id} value={variant.id}>
+                                                                        {variant.name}
+                                                                        {variant.inStock
+                                                                            ? " · Còn hàng"
+                                                                            : " · Hết hàng, chờ bổ sung"}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+
+                                                            {exchangeVariantsError[draft.orderItemId] && (
+                                                                <small className="store-support-alert error">
+                                                                    {exchangeVariantsError[draft.orderItemId]}
+                                                                </small>
+                                                            )}
+
+                                                            {exchangeVariantsLoading[draft.orderItemId] && (
+                                                                <small className="store-support-hint">
+                                                                    Đang tải danh sách phiên bản...
+                                                                </small>
+                                                            )}
+
+                                                            {!exchangeVariantsLoading[draft.orderItemId] &&
+                                                                !exchangeVariantsError[draft.orderItemId] &&
+                                                                variants.length === 0 && (
+                                                                    <small className="store-support-hint">
+                                                                        Không có phiên bản khác đang hoạt động để đổi.
+                                                                    </small>
+                                                                )}
+
+                                                            {draft.exchangeVariantId &&
+                                                                !exchangeVariantsLoading[draft.orderItemId] &&
+                                                                !exchangeVariantsError[draft.orderItemId] && (
+                                                                    <small className="store-support-hint">
+                                                                        {variants.find(
+                                                                            (variant) => variant.id === draft.exchangeVariantId
+                                                                        )?.inStock
+                                                                            ? "Phiên bản đang còn hàng. Cửa hàng sẽ kiểm tra khi tiếp nhận."
+                                                                            : "Phiên bản hiện hết hàng. Yêu cầu có thể phải chờ bổ sung."}
+                                                                    </small>
+                                                                )}
+                                                        </label>
+                                                    )}
+
+                                                    <label>
+                                                        <span>
+                                                            Lý do {draft.resolution === "EXCHANGE" ? "đổi hàng" : "hoàn tiền"}
+                                                            {" "}<b>*</b>
+                                                        </span>
+                                                        <textarea
+                                                            value={draft.reason}
+                                                            onChange={(event) =>
+                                                                updateReturnItem(draft.orderItemId, {
+                                                                    reason: event.target.value,
+                                                                })
+                                                            }
+                                                            minLength={3}
+                                                            maxLength={500}
+                                                            rows={3}
+                                                            placeholder="Mô tả lý do..."
+                                                            required
+                                                            disabled={returnSubmitting}
+                                                        />
+                                                        <small className="store-support-field-hint">
+                                                            {draft.reason.length}/500 ký tự
+                                                        </small>
+                                                    </label>
+
+                                                    <label>
+                                                        <span>Ghi chú thêm</span>
+                                                        <textarea
+                                                            value={draft.customerNote}
+                                                            onChange={(event) =>
+                                                                updateReturnItem(draft.orderItemId, {
+                                                                    customerNote: event.target.value,
+                                                                })
+                                                            }
+                                                            maxLength={2000}
+                                                            rows={2}
+                                                            placeholder="Thông tin bổ sung (không bắt buộc)..."
+                                                            disabled={returnSubmitting}
+                                                        />
+                                                    </label>
+                                                </section>
+                                            );
+                                        })}
+                                    </>
                                 )}
-
-                                {selectedReturnItem && returnForm.resolution === "EXCHANGE" && (
-                                    <div className="store-support-exchange">
-                                        <label>
-                                            <span>Phiên bản muốn đổi sang <b>*</b></span>
-                                            <select
-                                                value={returnForm.exchangeVariantId}
-                                                onChange={(event) => setReturnForm((current) => ({
-                                                    ...current,
-                                                    exchangeVariantId: event.target.value,
-                                                }))}
-                                                required
-                                                disabled={
-                                                    exchangeVariantsLoading ||
-                                                    returnSubmitting ||
-                                                    exchangeVariants.length === 0
-                                                }
-                                            >
-                                                <option value="">
-                                                    {exchangeVariantsLoading
-                                                        ? "Đang tải phiên bản..."
-                                                        : "-- Chọn phiên bản muốn đổi --"}
-                                                </option>
-                                                {exchangeVariants.map((variant) => (
-                                                    <option key={variant.id} value={variant.id}>
-                                                        {variant.name}
-                                                        {variant.inStock
-                                                            ? " · Còn hàng"
-                                                            : " · Hết hàng, chờ bổ sung"}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </label>
-
-                                        {exchangeVariantsLoading && (
-                                            <p className="store-support-muted">
-                                                Đang tải các phiên bản của sản phẩm...
-                                            </p>
-                                        )}
-
-                                        {exchangeVariantsError && (
-                                            <div className="store-support-alert error" role="alert">
-                                                {exchangeVariantsError}
-                                            </div>
-                                        )}
-
-                                        {!exchangeVariantsLoading &&
-                                            !exchangeVariantsError &&
-                                            exchangeVariants.length === 0 && (
-                                                <p className="store-support-hint">
-                                                    Sản phẩm hiện không có phiên bản khác đang hoạt động để đổi.
-                                                </p>
-                                            )}
-
-                                        {returnForm.exchangeVariantId && (
-                                            <p className="store-support-hint">
-                                                {exchangeVariants.find(
-                                                    (variant) => variant.id === returnForm.exchangeVariantId
-                                                )?.inStock
-                                                    ? "Phiên bản bạn chọn hiện còn hàng. Cửa hàng sẽ kiểm tra và xác nhận khi tiếp nhận sản phẩm."
-                                                    : "Phiên bản bạn chọn hiện đã hết hàng. Yêu cầu có thể phải chờ đến khi hàng được bổ sung."}
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
-
-                                {selectedReturnItem && (
-                                    <div className="store-support-selected-item">
-                                        <span>Sản phẩm đã chọn</span>
-                                        <strong>{getOrderItemLabel(selectedReturnItem)}</strong>
-                                        <small>
-                                            Số lượng trong đơn: {selectedReturnItem.quantity}
-                                            {selectedReturnItem.unitPrice != null
-                                                ? ` · Đơn giá: ${formatSupportMoney(selectedReturnItem.unitPrice)}`
-                                                : ""}
-                                        </small>
-                                    </div>
-                                )}
-
-                                <label>
-                                    <span>Số lượng cần đổi / trả <b>*</b></span>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max={selectedReturnItem?.quantity || undefined}
-                                        step="1"
-                                        value={returnForm.quantity}
-                                        onChange={(event) =>
-                                            setReturnForm((current) => ({
-                                                ...current,
-                                                quantity: event.target.value,
-                                            }))
-                                        }
-                                        required
-                                        disabled={!selectedReturnItem || returnSubmitting}
-                                    />
-                                </label>
-
-                                <label>
-                                    <span>
-                                        {returnForm.resolution === "EXCHANGE"
-                                            ? "Lý do đổi hàng"
-                                            : "Lý do hoàn tiền"}{" "}
-                                        <b>*</b>
-                                    </span>
-                                    <textarea
-                                        value={returnForm.reason}
-                                        onChange={(event) =>
-                                            setReturnForm((current) => ({
-                                                ...current,
-                                                reason: event.target.value,
-                                            }))
-                                        }
-                                        minLength={3}
-                                        maxLength={500}
-                                        rows={3}
-                                        placeholder={
-                                            returnForm.resolution === "EXCHANGE"
-                                                ? "Mô tả lý do bạn muốn đổi sang phiên bản khác..."
-                                                : "Mô tả lý do bạn muốn hoàn tiền..."
-                                        }
-                                        required
-                                        disabled={returnSubmitting}
-                                    />
-                                    <small className="store-support-field-hint">
-                                        {returnForm.reason.length}/500 ký tự
-                                    </small>
-                                </label>
-
-                                <label>
-                                    <span>Ghi chú thêm</span>
-                                    <textarea
-                                        value={returnForm.customerNote}
-                                        onChange={(event) =>
-                                            setReturnForm((current) => ({
-                                                ...current,
-                                                customerNote: event.target.value,
-                                            }))
-                                        }
-                                        maxLength={2000}
-                                        rows={2}
-                                        placeholder="Thông tin bổ sung (không bắt buộc)..."
-                                        disabled={returnSubmitting}
-                                    />
-                                </label>
 
                                 <button
                                     className="store-support-submit"
@@ -1028,24 +1085,13 @@ export default function CustomerSupportWidget({
                                     disabled={
                                         returnSubmitting ||
                                         returnLoading ||
-                                        !selectedReturnItem ||
-                                        !returnForm.reason.trim() ||
-                                        (returnForm.resolution === "EXCHANGE" &&
-                                            (
-                                                !returnForm.exchangeVariantId ||
-                                                exchangeVariantsLoading ||
-                                                !!exchangeVariantsError ||
-                                                !exchangeVariants.some(
-                                                    (variant) => variant.id === returnForm.exchangeVariantId
-                                                )
-                                            ))
+                                        !selectedReturnOrderId ||
+                                        selectedReturnItems.length === 0
                                     }
                                 >
                                     {returnSubmitting
                                         ? "ĐANG GỬI..."
-                                        : returnForm.resolution === "EXCHANGE"
-                                            ? "GỬI YÊU CẦU ĐỔI HÀNG"
-                                            : "GỬI YÊU CẦU HOÀN TIỀN"}
+                                        : `GỬI ${selectedReturnItems.length || ""} YÊU CẦU ĐỔI / TRẢ`}
                                 </button>
                             </form>
 
@@ -1087,6 +1133,8 @@ export default function CustomerSupportWidget({
                                         {returnRequests.map((request) => {
                                             const status = request.status || request.returnStatus;
                                             const itemLabel =
+                                                request.items?.[0]?.orderItem?.productName ||
+                                                request.items?.[0]?.orderItem?.product?.name ||
                                                 request.orderItem?.productName ||
                                                 request.item?.productName ||
                                                 request.productName ||

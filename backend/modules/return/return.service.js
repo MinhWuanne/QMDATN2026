@@ -1,8 +1,6 @@
 const { Prisma } = require("@prisma/client");
 const crypto = require("crypto");
 const prisma = require("../../core/database/prisma");
-
-const TERMINAL_STATUSES = ["COMPLETED", "REJECTED", "CANCELLED"];
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 
 const RETURN_INCLUDE = {
@@ -389,21 +387,93 @@ async function createReplacementOrder(tx, request, returnItem, adminId) {
 // ==========================================
 
 
+
 async function createReturnRequest(userId, input) {
     assertUuid(userId, "userId");
+
+    if (!input || typeof input !== "object") {
+        throwValidationError("body", "Dữ liệu yêu cầu không hợp lệ");
+    }
+
     assertUuid(input.orderId, "orderId");
-    assertUuid(input.orderItemId, "orderItemId");
+
+    if (!Array.isArray(input.items) || input.items.length < 1) {
+        throwValidationError(
+            "items",
+            "Vui lòng chọn ít nhất một sản phẩm"
+        );
+    }
+
+    const seenOrderItemIds = new Set();
+
+    for (let index = 0; index < input.items.length; index++) {
+        const item = input.items[index];
+
+        if (!item || typeof item !== "object") {
+            throwValidationError(
+                `items.${index}`,
+                "Thông tin sản phẩm không hợp lệ"
+            );
+        }
+
+        assertUuid(
+            item.orderItemId,
+            `items.${index}.orderItemId`
+        );
+
+        if (seenOrderItemIds.has(item.orderItemId)) {
+            throwValidationError(
+                `items.${index}.orderItemId`,
+                "Không được chọn trùng sản phẩm"
+            );
+        }
+
+        seenOrderItemIds.add(item.orderItemId);
+
+        if (!["REFUND", "EXCHANGE"].includes(item.resolution)) {
+            throwValidationError(
+                `items.${index}.resolution`,
+                "Hình thức xử lý yêu cầu không hợp lệ"
+            );
+        }
+
+        if (
+            !Number.isSafeInteger(item.quantity) ||
+            item.quantity < 1
+        ) {
+            throwValidationError(
+                `items.${index}.quantity`,
+                "Số lượng yêu cầu không hợp lệ"
+            );
+        }
+
+        if (
+            typeof item.reason !== "string" ||
+            item.reason.trim().length < 3 ||
+            item.reason.trim().length > 500
+        ) {
+            throwValidationError(
+                `items.${index}.reason`,
+                "Lý do yêu cầu phải có từ 3 đến 500 ký tự"
+            );
+        }
+
+        if (item.resolution === "EXCHANGE") {
+            assertUuid(
+                item.exchangeVariantId,
+                `items.${index}.exchangeVariantId`
+            );
+        } else if (item.exchangeVariantId) {
+            throwValidationError(
+                `items.${index}.exchangeVariantId`,
+                "Yêu cầu hoàn tiền không nhận phiên bản đổi"
+            );
+        }
+    }
 
     try {
         return await prisma.$transaction(
             async (tx) => {
-                if (!["REFUND", "EXCHANGE"].includes(input.resolution)) {
-                    throwValidationError(
-                        "resolution",
-                        "Hình thức xử lý yêu cầu không hợp lệ"
-                    );
-                }
-
                 const order = await tx.order.findFirst({
                     where: {
                         id: input.orderId,
@@ -446,147 +516,198 @@ async function createReturnRequest(userId, input) {
                     throwError("RETURN_WINDOW_EXPIRED", 409);
                 }
 
-                const orderItem = order.items.find(
-                    (item) => item.id === input.orderItemId
-                );
+                // Chuẩn bị toàn bộ dữ liệu trước khi tạo request.
+                // Bất kỳ sản phẩm nào không hợp lệ đều làm rollback batch.
+                const preparedItems = [];
 
-                if (!orderItem) {
-                    throwError("ORDER_ITEM_NOT_FOUND", 404);
-                }
+                for (let index = 0; index < input.items.length; index++) {
+                    const inputItem = input.items[index];
 
-                // Mỗi OrderItem chỉ được tạo một ReturnRequest trong toàn bộ vòng đời.
-                const existingItemRequest =
-                    await tx.returnItem.findUnique({
-                        where: {
-                            orderItemId: orderItem.id,
-                        },
-                    });
-
-                if (existingItemRequest) {
-                    throwError("RETURN_ITEM_ALREADY_REQUESTED", 409);
-                }
-
-                // Mỗi đơn chỉ được có một yêu cầu chưa ở trạng thái kết thúc.
-                const activeRequest = await tx.returnRequest.findFirst({
-                    where: {
-                        orderId: order.id,
-                        status: {
-                            notIn: TERMINAL_STATUSES,
-                        },
-                    },
-                    select: {
-                        id: true,
-                    },
-                });
-
-                if (activeRequest) {
-                    throwError("RETURN_ORDER_HAS_ACTIVE_REQUEST", 409);
-                }
-
-                if (
-                    !Number.isSafeInteger(input.quantity) ||
-                    input.quantity < 1 ||
-                    input.quantity > orderItem.quantity
-                ) {
-                    throwValidationError(
-                        "quantity",
-                        "Số lượng yêu cầu không hợp lệ"
-                    );
-                }
-
-                const isExchange = input.resolution === "EXCHANGE";
-                let exchangeVariant = null;
-
-                if (isExchange) {
-                    assertUuid(
-                        input.exchangeVariantId,
-                        "exchangeVariantId"
+                    const orderItem = order.items.find(
+                        (item) => item.id === inputItem.orderItemId
                     );
 
-                    if (input.exchangeVariantId === orderItem.variantId) {
+                    if (!orderItem) {
+                        throwError("ORDER_ITEM_NOT_FOUND", 404);
+                    }
+
+                    // Khóa vĩnh viễn theo OrderItem:
+                    // đã từng tạo ReturnItem thì không được yêu cầu lại,
+                    // kể cả request trước đó đã bị từ chối hoặc hủy.
+                    const existingItemRequest =
+                        await tx.returnItem.findUnique({
+                            where: {
+                                orderItemId: orderItem.id,
+                            },
+                            select: {
+                                id: true,
+                                returnRequestId: true,
+                            },
+                        });
+
+                    if (existingItemRequest) {
+                        throwError("RETURN_ITEM_ALREADY_REQUESTED", 409);
+                    }
+
+                    if (
+                        inputItem.quantity > orderItem.quantity
+                    ) {
                         throwValidationError(
-                            "exchangeVariantId",
-                            "Vui lòng chọn phiên bản khác với sản phẩm đã mua"
+                            `items.${index}.quantity`,
+                            "Số lượng yêu cầu vượt quá số lượng đã mua"
                         );
                     }
 
-                    exchangeVariant = await tx.productVariant.findUnique({
-                        where: {
-                            id: input.exchangeVariantId,
-                        },
-                        include: {
-                            product: {
-                                select: {
-                                    id: true,
-                                    status: true,
+                    const isExchange =
+                        inputItem.resolution === "EXCHANGE";
+
+                    let exchangeVariant = null;
+
+                    if (isExchange) {
+                        if (
+                            inputItem.exchangeVariantId ===
+                            orderItem.variantId
+                        ) {
+                            throwValidationError(
+                                `items.${index}.exchangeVariantId`,
+                                "Vui lòng chọn phiên bản khác với sản phẩm đã mua"
+                            );
+                        }
+
+                        exchangeVariant =
+                            await tx.productVariant.findUnique({
+                                where: {
+                                    id: inputItem.exchangeVariantId,
+                                },
+                                include: {
+                                    product: {
+                                        select: {
+                                            id: true,
+                                            status: true,
+                                        },
+                                    },
+                                },
+                            });
+
+                        if (
+                            !exchangeVariant ||
+                            !exchangeVariant.isActive ||
+                            exchangeVariant.product.status !== "ACTIVE"
+                        ) {
+                            throwError(
+                                "EXCHANGE_VARIANT_UNAVAILABLE",
+                                409
+                            );
+                        }
+
+                        if (
+                            exchangeVariant.productId !==
+                            orderItem.productId
+                        ) {
+                            throwValidationError(
+                                `items.${index}.exchangeVariantId`,
+                                "Chỉ được đổi sang phiên bản khác của cùng sản phẩm"
+                            );
+                        }
+                    }
+
+                    const refundAmount = isExchange
+                        ? null
+                        : calculateRefundAmount(
+                            orderItem,
+                            inputItem.quantity
+                        );
+
+                    if (
+                        !isExchange &&
+                        (
+                            !refundAmount ||
+                            !refundAmount.isFinite() ||
+                            refundAmount.lte(0)
+                        )
+                    ) {
+                        throwError(
+                            "RETURN_REFUND_AMOUNT_INVALID",
+                            409
+                        );
+                    }
+
+                    preparedItems.push({
+                        inputItem,
+                        orderItem,
+                        isExchange,
+                        exchangeVariant,
+                        refundAmount,
+                    });
+                }
+
+                // Không kiểm tra ReturnRequest đang hoạt động theo orderId.
+                // Một Order được phép có nhiều request độc lập,
+                // miễn là mỗi request thuộc một OrderItem khác nhau.
+
+                const createdRequests = [];
+
+                for (const prepared of preparedItems) {
+                    const {
+                        inputItem,
+                        orderItem,
+                        isExchange,
+                        exchangeVariant,
+                        refundAmount,
+                    } = prepared;
+
+                    const request = await tx.returnRequest.create({
+                        data: {
+                            orderId: order.id,
+                            userId,
+
+                            type: isExchange
+                                ? "EXCHANGE"
+                                : "RETURN",
+
+                            resolution: inputItem.resolution,
+                            status: "REQUESTED",
+
+                            reason: inputItem.reason.trim(),
+
+                            customerNote:
+                                typeof inputItem.customerNote === "string"
+                                    ? inputItem.customerNote.trim() || null
+                                    : null,
+
+                            refundAmount,
+
+                            items: {
+                                create: {
+                                    orderItemId: orderItem.id,
+                                    quantity: inputItem.quantity,
+                                    status: "PENDING",
+
+                                    exchangeVariantId:
+                                        exchangeVariant?.id || null,
+
+                                    exchangeQuantity: isExchange
+                                        ? inputItem.quantity
+                                        : null,
                                 },
                             },
                         },
+                        include: RETURN_INCLUDE,
                     });
 
-                    if (
-                        !exchangeVariant ||
-                        !exchangeVariant.isActive ||
-                        exchangeVariant.product.status !== "ACTIVE"
-                    ) {
-                        throwError("EXCHANGE_VARIANT_UNAVAILABLE", 409);
-                    }
-
-                    if (exchangeVariant.productId !== orderItem.productId) {
-                        throwValidationError(
-                            "exchangeVariantId",
-                            "Chỉ được đổi sang phiên bản khác của cùng sản phẩm"
-                        );
-                    }
+                    createdRequests.push(request);
                 }
 
-                const refundAmount = isExchange
-                    ? null
-                    : calculateRefundAmount(
-                        orderItem,
-                        input.quantity
-                    );
-
-                if (
-                    !isExchange &&
-                    (
-                        !refundAmount ||
-                        new Prisma.Decimal(refundAmount).lte(0)
-                    )
-                ) {
-                    throwError("RETURN_REFUND_AMOUNT_INVALID", 409);
-                }
-
-                const request = await tx.returnRequest.create({
-                    data: {
-                        orderId: order.id,
-                        userId,
-                        type: isExchange ? "EXCHANGE" : "RETURN",
-                        resolution: input.resolution,
-                        status: "REQUESTED",
-                        reason: input.reason,
-                        customerNote: input.customerNote || null,
-                        refundAmount,
-                        items: {
-                            create: {
-                                orderItemId: orderItem.id,
-                                quantity: input.quantity,
-                                status: "PENDING",
-                                exchangeVariantId:
-                                    exchangeVariant?.id || null,
-                                exchangeQuantity: isExchange
-                                    ? input.quantity
-                                    : null,
-                            },
-                        },
-                    },
-                    include: RETURN_INCLUDE,
-                });
-
-                return request;
+                return {
+                    orderId: order.id,
+                    orderNumber: order.orderNumber,
+                    createdCount: createdRequests.length,
+                    requests: createdRequests,
+                };
             },
             {
-                isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+                isolationLevel:
+                    Prisma.TransactionIsolationLevel.Serializable,
             }
         );
     } catch (error) {
