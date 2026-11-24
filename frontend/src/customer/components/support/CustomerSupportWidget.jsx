@@ -617,13 +617,13 @@ export default function CustomerSupportWidget({
             {isOpen && (
                 <section
                     className="store-chat-panel"
-                    aria-label="Trung tâm hỗ trợ QMD Sport"
+                    aria-label="Trung tâm hỗ trợ LAN ANH Sport"
                 >
                     <header className="store-chat-panel-header">
                         <div className="store-chat-panel-brand">
                             <div className="store-chat-panel-avatar">Q</div>
                             <div>
-                                <strong>QMD SPORT SUPPORT</strong>
+                                <strong>LAN ANH SPORT SUPPORT</strong>
                                 <small><span /> Đội ngũ hỗ trợ</small>
                             </div>
                         </div>
@@ -722,7 +722,7 @@ export default function CustomerSupportWidget({
 
                                 {!chatLoading && chatMessages.length === 0 && !chatError && (
                                     <div className="store-chat-date">
-                                        Hãy gửi tin nhắn để bắt đầu trò chuyện với QMD Sport
+                                        Hãy gửi tin nhắn để bắt đầu trò chuyện với Lan Anh Sport
                                     </div>
                                 )}
 

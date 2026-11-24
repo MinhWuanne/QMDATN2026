@@ -1,0 +1,186 @@
+﻿========== CUSTOMER SUPPORT WIDGET: LINES 680-770 ==========
+ 680:                                         {[
+ 681:                                             {
+ 682:                                                 label: "Tư vấn sản phẩm",
+ 683:                                                 message: "Tôi cần tư vấn sản phẩm cầu lông/pickleball.",
+ 684:                                             },
+ 685:                                             {
+ 686:                                                 label: "Theo dõi đơn hàng",
+ 687:                                                 message: "Tôi muốn kiểm tra tình trạng đơn hàng.",
+ 688:                                             },
+ 689:                                             {
+ 690:                                                 label: "Thanh toán",
+ 691:                                                 message: "Tôi cần hỗ trợ về vấn đề thanh toán.",
+ 692:                                             },
+ 693:                                             {
+ 694:                                                 label: "Đổi / trả hàng",
+ 695:                                                 message: "Tôi cần tư vấn về việc đổi hoặc trả sản phẩm.",
+ 696:                                             },
+ 697:                                             {
+ 698:                                                 label: "Vấn đề khác",
+ 699:                                                 message: "Tôi có câu hỏi khác cần được hỗ trợ.",
+ 700:                                             },
+ 701:                                         ].map((topic) => (
+ 702:                                             <button
+ 703:                                                 key={topic.label}
+ 704:                                                 type="button"
+ 705:                                                 className="store-support-choice-button"
+ 706:                                                 onClick={() => setChatInput(topic.message)}
+ 707:                                                 disabled={chatSending}
+ 708:                                             >
+ 709:                                                 {topic.label}
+ 710:                                             </button>
+ 711:                                         ))}
+ 712:                                     </div>
+ 713:                                 </div>
+ 714: 
+ 715:                                 <div className="store-chat-date">HỘI THOẠI HỖ TRỢ</div>
+ 716: 
+ 717:                                 {chatLoading && chatMessages.length === 0 && (
+ 718:                                     <div className="store-chat-date">
+ 719:                                         ĐANG TẢI TIN NHẮN...
+ 720:                                     </div>
+ 721:                                 )}
+ 722: 
+ 723:                                 {!chatLoading && chatMessages.length === 0 && !chatError && (
+ 724:                                     <div className="store-chat-date">
+ 725:                                         Hãy gửi tin nhắn để bắt đầu trò chuyện với QMD Sport
+ 726:                                     </div>
+ 727:                                 )}
+ 728: 
+ 729:                                 {chatMessages.map((message) => {
+ 730:                                     const isMine =
+ 731:                                         message.sender?.role === "CUSTOMER" ||
+ 732:                                         message.senderId === user?.id;
+ 733: 
+ 734:                                     return (
+ 735:                                         <div
+ 736:                                             key={message.id}
+ 737:                                             className={`store-chat-message ${isMine ? "mine" : "theirs"}`}
+ 738:                                         >
+ 739:                                             <p>{message.content}</p>
+ 740:                                             <time>{formatChatTime(message.createdAt)}</time>
+ 741:                                         </div>
+ 742:                                     );
+ 743:                                 })}
+ 744: 
+ 745:                                 {chatError && (
+ 746:                                     <div className="store-chat-date store-support-error">
+ 747:                                         {chatError}
+ 748:                                         <button type="button" onClick={loadChatMessages}>
+ 749:                                             Thử tải lại
+ 750:                                         </button>
+ 751:                                     </div>
+ 752:                                 )}
+ 753:                             </div>
+ 754: 
+ 755:                             <form
+ 756:                                 className="store-chat-panel-compose"
+ 757:                                 onSubmit={handleSendChat}
+ 758:                             >
+ 759:                                 <input
+ 760:                                     value={chatInput}
+ 761:                                     onChange={(event) => setChatInput(event.target.value)}
+ 762:                                     placeholder="Nhập tin nhắn..."
+ 763:                                     maxLength={2000}
+ 764:                                     disabled={chatSending || chatLoading}
+ 765:                                 />
+ 766: 
+ 767:                                 <button
+ 768:                                     type="submit"
+ 769:                                     disabled={!chatInput.trim() || chatSending || chatLoading}
+ 770:                                     aria-label="Gửi tin nhắn"
+
+========== BRANDING / CHAT REFERENCES ==========
+  25: import "../../pages/storefront/storefront-support.css";
+  27: export default function CustomerSupportWidget({
+  43:     const [supportTab, setSupportTab] = useState("CHAT");
+  72:     const [profileEditMode, setProfileEditMode] = useState("BOTH");
+  87:         if (supportTab === "RETURN") {
+  91:         if (supportTab === "PROFILE") {
+  94:     }, [isOpen, supportTab, user?.id, accessToken]);
+ 290:     function formatSupportDate(value) {
+ 300:     function formatSupportMoney(value) {
+ 620:                     aria-label="Trung tâm hỗ trợ LAN ANH Sport"
+ 626:                                 <strong>LAN ANH SPORT SUPPORT</strong>
+ 641:                     <nav className="store-support-tabs" aria-label="Các mục hỗ trợ">
+ 644:                             className={supportTab === "CHAT" ? "active" : ""}
+ 645:                             aria-current={supportTab === "CHAT" ? "page" : undefined}
+ 646:                             onClick={() => setSupportTab("CHAT")}
+ 653:                             className={supportTab === "RETURN" ? "active" : ""}
+ 654:                             aria-current={supportTab === "RETURN" ? "page" : undefined}
+ 655:                             onClick={() => setSupportTab("RETURN")}
+ 662:                             className={supportTab === "PROFILE" ? "active" : ""}
+ 663:                             aria-current={supportTab === "PROFILE" ? "page" : undefined}
+ 664:                             onClick={() => setSupportTab("PROFILE")}
+ 670:                     {supportTab === "CHAT" && (
+ 671:                         <div className="store-support-content store-support-chat-content">
+ 675:                                 <div className="store-support-choice-group">
+ 676:                                     <div className="store-support-choice-title">
+ 679:                                     <div className="store-support-choice-list">
+ 705:                                                 className="store-support-choice-button"
+ 725:                                         Hãy gửi tin nhắn để bắt đầu trò chuyện với QMD Sport
+ 746:                                     <div className="store-chat-date store-support-error">
+ 782:                     {supportTab === "RETURN" && (
+ 783:                         <div className="store-support-content">
+ 784:                             <div className="store-support-intro">
+ 785:                                 <span className="store-support-eyebrow">ORDER SUPPORT</span>
+ 792:                                 <p className="store-support-hint">
+ 799:                                 <div className="store-support-alert error" role="alert">
+ 805:                                 <div className="store-support-alert success" role="status">
+ 811:                                 className="store-support-form"
+ 838:                                         <div className="store-support-choice-group">
+ 839:                                             <div className="store-support-choice-title">
+ 843:                                             <p className="store-support-hint">
+ 848:                                             <div className="store-support-request-list">
+ 855:                                                             className={`store-support-request ${selected ? "active" : ""}`}
+ 879:                                                                         Đơn giá: {formatSupportMoney(orderItem.unitPrice)}
+ 902:                                                     className="store-support-selected-item"
+ 924:                                                     <div className="store-support-resolution">
+ 925:                                                         <span className="store-support-field-title">
+ 929:                                                         <div className="store-support-resolution-options">
+1004:                                                                 <small className="store-support-alert error">
+1010:                                                                 <small className="store-support-hint">
+1018:                                                                     <small className="store-support-hint">
+1026:                                                                     <small className="store-support-hint">
+1056:                                                         <small className="store-support-field-hint">
+1083:                                     className="store-support-submit"
+1099:                                 <div className="store-support-empty">
+1103:                                 <div className="store-support-empty">
+1113:                             <div className="store-support-history">
+1114:                                 <div className="store-support-history-heading">
+1126:                                     <p className="store-support-muted">Đang tải lịch sử...</p>
+1128:                                     <p className="store-support-muted">
+1132:                                     <div className="store-support-request-list">
+1144:                                                 <article className="store-support-request" key={request.id}>
+1145:                                                     <div className="store-support-request-top">
+1147:                                                         <span className={`store-support-status status-${String(status || "").toLowerCase()}`}>
+1154:                                                     <p className="store-support-request-resolution">
+1166:                                                         {formatSupportDate(
+1172:                                                         <p className="store-support-request-reason">
+1185:                     {supportTab === "PROFILE" && (
+1186:                         <div className="store-support-content">
+1187:                             <div className="store-support-intro">
+1188:                                 <span className="store-support-eyebrow">MEMBER PROFILE</span>
+1197:                                 <div className="store-support-alert error" role="alert">
+1203:                                 <div className="store-support-alert success" role="status">
+1209:                                 className="store-support-form"
+1213:                                 <div className="store-support-choice-group">
+1214:                                     <div className="store-support-choice-title">
+1217:                                     <div className="store-support-choice-list">
+1221:                                             { value: "BOTH", label: "Cả hai" },
+1226:                                                 className={`store-support-choice-button ${profileEditMode === option.value ? "active" : ""
+1250:                                     profileEditMode === "BOTH") && (
+1269:                                     profileEditMode === "BOTH") && (
+1288:                                 <p className="store-support-field-hint">
+1293:                                     className="store-support-submit"
+1307:                             <div className="store-support-history">
+1308:                                 <div className="store-support-history-heading">
+1320:                                     <p className="store-support-muted">Đang tải lịch sử...</p>
+1322:                                     <p className="store-support-muted">
+1326:                                     <div className="store-support-request-list">
+1331:                                                 <article className="store-support-request" key={request.id}>
+1332:                                                     <div className="store-support-request-top">
+1334:                                                         <span className={`store-support-status status-${String(status || "").toLowerCase()}`}>
+1348:                                                         {formatSupportDate(
+1354:                                                         <p className="store-support-request-reason">

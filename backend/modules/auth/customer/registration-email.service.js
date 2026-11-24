@@ -24,7 +24,7 @@ async function sendRegistrationOtpEmail({
   const text = [
     `Xin chào ${fullName},`,
     "",
-    "Cảm ơn bạn đã đăng ký tài khoản QMDATN2026.",
+    "Cảm ơn bạn đã đăng ký tài khoản Lan Anh Sport.",
     `Mã xác minh của bạn là: ${otp}`,
     "Mã có hiệu lực trong 5 phút.",
     "",
@@ -34,7 +34,7 @@ async function sendRegistrationOtpEmail({
 
   return sendEmail({
     to,
-    subject: "Mã xác minh đăng ký tài khoản QMDATN2026",
+    subject: "Mã xác minh đăng ký tài khoản Lan Anh Sport",
     text,
     html,
   });

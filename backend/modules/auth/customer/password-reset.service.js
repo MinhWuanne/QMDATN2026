@@ -1,4 +1,4 @@
-﻿const crypto = require("crypto");
+const crypto = require("crypto");
 const prisma = require("../../../core/database/prisma");
 const { sendEmail } = require("../../../core/email/email.service");
 const { hashPassword } = require("../../../core/security/password");
@@ -14,7 +14,7 @@ function hashResetToken(token) {
 
 function createResetEmail(resetUrl) {
   return {
-    subject: "Reset your QMDATN2026 password",
+    subject: "Reset your Lan Anh Sport password",
     text: [
       "We received a request to reset your password.",
       `Reset your password using this link: ${resetUrl}`,

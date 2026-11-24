@@ -1,4 +1,4 @@
-﻿
+
 import { useState } from "react";
 import { Brand, Notice } from "../../components/auth/AuthComponents.jsx";
 import "./dashboard.css";
@@ -43,7 +43,7 @@ function MemberIdentity({ user }) {
       </div>
 
       <div>
-        <span>THÀNH VIÊN QMD SPORT</span>
+        <span>THÀNH VIÊN LAN ANH SPORT</span>
         <h3>{getMemberName(user)}</h3>
         <small>Customer account</small>
       </div>
@@ -76,10 +76,10 @@ function MemberFooter() {
   return (
     <footer className="member-footer">
       <strong>
-        QMD <span>SPORT</span>
+        LAN ANH <span>SPORT</span>
       </strong>
       <p>YOUR GAME. YOUR STYLE. YOUR EXPERIENCE.</p>
-      <small>© QMD SPORT MEMBER CENTER</small>
+      <small>© LAN ANH SPORT MEMBER CENTER</small>
     </footer>
   );
 }
@@ -201,7 +201,7 @@ export default function Dashboard({
         <header className="member-topbar">
           <div>
             <span className="member-topbar-eyebrow">
-              QMD SPORT / MEMBER CENTER
+              LAN ANH SPORT / MEMBER CENTER
             </span>
             <h2>{currentSection?.label || "Tổng quan"}</h2>
           </div>

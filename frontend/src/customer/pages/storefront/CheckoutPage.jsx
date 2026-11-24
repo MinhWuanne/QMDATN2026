@@ -866,7 +866,7 @@ export default function CheckoutPage({
             </button>
 
             <p className="checkout-secure-note">
-              Thông tin đơn hàng được xác thực bởi máy chủ QMD Sport.
+              Thông tin đơn hàng được xác thực bởi máy chủ Lan Anh Sport.
             </p>
           </aside>
         </form>

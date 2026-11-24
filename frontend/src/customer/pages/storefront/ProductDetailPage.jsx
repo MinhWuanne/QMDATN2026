@@ -406,7 +406,7 @@ export default function ProductDetailPage({
 
         <div className="product-detail-information">
           <div className="product-detail-brand">
-            {product.brand?.name || "QMD SPORT"}
+            {product.brand?.name || "Lan Anh Sport"}
           </div>
 
           <h1>{product.name}</h1>
@@ -618,7 +618,7 @@ export default function ProductDetailPage({
         <div className="product-detail-support-icon">🏸</div>
 
         <div className="product-detail-support-content">
-          <span>QMD SPORT SUPPORT</span>
+          <span>LAN ANH SPORT SUPPORT</span>
           <h3>Bạn cần tư vấn lựa chọn sản phẩm?</h3>
           <p>
             Liên hệ với chúng tôi để được hỗ trợ tìm hiểu sản phẩm

@@ -638,7 +638,7 @@ export default function AddressBook({
           <h2>Sổ địa chỉ</h2>
 
           <p>
-            Quản lý địa chỉ nhận hàng cho các đơn hàng QMD SPORT.
+            Quản lý địa chỉ nhận hàng cho các đơn hàng LAN ANH SPORT.
           </p>
         </div>
 
