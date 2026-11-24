@@ -61,7 +61,7 @@ function MemberIdentity({ user }) {
       </div>
 
       <div>
-        <span>THÀNH VIÊN QMD SPORT</span>
+        <span>THÀNH VIÊN LAN ANH SPORT</span>
         <h3>{getMemberName(user)}</h3>
         <small>Customer account</small>
       </div>
@@ -162,7 +162,7 @@ function MembershipCard({
           </span>
           <h2>Hạng thành viên</h2>
           <p>
-            Theo dõi cấp bậc và giá trị mua hàng tích lũy tại QMD SPORT.
+            Theo dõi cấp bậc và giá trị mua hàng tích lũy tại LAN ANH SPORT.
           </p>
         </div>
 
@@ -180,7 +180,7 @@ function MembershipCard({
               />
             ) : (
               <div className="member-tier-image-fallback">
-                QMD
+                LAN ANH
               </div>
             )}
           </div>
@@ -218,7 +218,7 @@ function MembershipCard({
               <span className="member-tier-max-icon">✦</span>
               <div>
                 <strong>Hạng cao nhất</strong>
-                <p>Bạn đã đạt hạng Kim cương của QMD SPORT.</p>
+                <p>Bạn đã đạt hạng Kim cương của LAN ANH SPORT.</p>
               </div>
             </div>
           ) : (
@@ -303,7 +303,7 @@ function MembershipCard({
         </div>
 
         <p className="member-tier-benefits-note">
-          Các quyền lợi đang được QMD SPORT phát triển và chưa áp dụng
+          Các quyền lợi đang được LAN ANH SPORT phát triển và chưa áp dụng
           thực tế tại thời điểm hiện tại.
         </p>
       </div>
@@ -404,14 +404,14 @@ export default function CustomerOverview({
           </h1>
 
           <p>
-            Chào mừng bạn quay trở lại QMD SPORT.
+            Chào mừng bạn quay trở lại LAN ANH SPORT.
             <br />
             Đây là không gian dành riêng cho tài khoản thành viên của bạn.
           </p>
 
           <div className="member-welcome-meta">
             <span>✦</span>
-            QMD SPORT MEMBER
+            LAN ANH SPORT MEMBER
 
             {memberSince && (
               <>
@@ -423,7 +423,7 @@ export default function CustomerOverview({
         </div>
 
         <div className="member-welcome-mark" aria-hidden="true">
-          <span>QMD</span>
+          <span>LAN ANH</span>
           <strong>SPORT</strong>
           <small>YOUR GAME. YOUR STYLE.</small>
         </div>
@@ -444,7 +444,7 @@ export default function CustomerOverview({
             </span>
             <h2>Thông tin thành viên</h2>
             <p>
-              Thông tin cơ bản được sử dụng trong tài khoản QMD SPORT.
+              Thông tin cơ bản được sử dụng trong tài khoản LAN ANH SPORT.
             </p>
           </div>
 

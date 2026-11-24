@@ -132,7 +132,7 @@ function mapCatalogProduct(product) {
 
   return {
     ...product,
-    brandName: product.brand?.name || "QMD SPORT",
+    brandName: product.brand?.name || "LAN ANH SPORT",
     categoryName: product.category?.name || "Khác",
     imageUrl: getProductImage(product),
     inStock: availableQuantity > 0,
@@ -183,7 +183,7 @@ function ProductCard({
               loading="lazy"
             />
           ) : (
-            <span className="store-product-art">QMD</span>
+            <span className="store-product-art">LAN ANH</span>
           )}
 
           <span className="store-product-art-label">
@@ -523,7 +523,7 @@ export default function StorefrontPage({
         <span>✦</span>
         MIỄN PHÍ VẬN CHUYỂN CHO ĐƠN HÀNG TỪ 1.000.000₫
         <span className="store-announcement-separator">·</span>
-        ƯU ĐÃI ĐẶC BIỆT TẠI QMD SPORT
+        ƯU ĐÃI ĐẶC BIỆT TẠI LAN ANH SPORT
       </div>
 
       {/* HEADER */}
@@ -539,7 +539,7 @@ export default function StorefrontPage({
           <span className="store-logo-mark">Q</span>
 
           <span className="store-logo-text">
-            QMD SPORT
+            LAN ANH SPORT
             <small>PLAY YOUR GAME</small>
           </span>
         </a>
@@ -625,7 +625,7 @@ export default function StorefrontPage({
         <section className="store-hero">
           <div className="store-hero-content">
             <span className="store-eyebrow">
-              <span /> QMD SPORT — PERFORMANCE & LIFESTYLE
+              <span /> LAN ANH SPORT — PERFORMANCE & LIFESTYLE
             </span>
 
             <h1>
@@ -678,7 +678,7 @@ export default function StorefrontPage({
               </div>
 
               <div>
-                <strong>QMD</strong>
+                <strong>LAN ANH</strong>
                 <span>Sports store</span>
               </div>
             </div>
@@ -688,17 +688,17 @@ export default function StorefrontPage({
             <img
               className="store-hero-image"
               src={heroImage}
-              alt="Bộ sưu tập sản phẩm thể thao QMD Sport"
+              alt="Bộ sưu tập sản phẩm thể thao Lan Anh Sport"
             />
 
             <div className="store-hero-image-shade" />
             <div className="store-hero-circle" />
-            <div className="store-hero-decoration">QMD</div>
+            <div className="store-hero-decoration">LAN ANH</div>
 
             <div className="store-hero-label">
               <small>PERFORMANCE COLLECTION</small>
               <strong>POWER YOUR GAME</strong>
-              <span>QMD SPORT / 2026</span>
+              <span>LAN ANH SPORT / 2026</span>
             </div>
 
             <div className="store-hero-floating-tag">
@@ -752,7 +752,7 @@ export default function StorefrontPage({
               <h2>Chọn môn thể thao của bạn</h2>
               <p>
                 Mỗi cuộc chơi có một phong cách.
-                QMD Sport đồng hành cùng hành trình của bạn.
+                Lan Anh Sport đồng hành cùng hành trình của bạn.
               </p>
             </div>
             <span className="store-passion-index">01 — 03</span>
@@ -961,7 +961,7 @@ export default function StorefrontPage({
               <h2>Chọn môn thể thao của bạn</h2>
 
               <p>
-                Mỗi cuộc chơi có một phong cách. QMD Sport đồng
+                Mỗi cuộc chơi có một phong cách. Lan Anh Sport đồng
                 hành cùng hành trình của bạn.
               </p>
             </div>
@@ -999,7 +999,7 @@ export default function StorefrontPage({
           <div className="store-section-heading">
             <div>
               <span className="store-section-eyebrow">
-                THE QMD SPORT STORE
+                THE LAN ANH SPORT STORE
               </span>
 
               <h2>Tất cả sản phẩm</h2>
@@ -1053,7 +1053,7 @@ export default function StorefrontPage({
             <div className="store-product-results-info">
               <div>
                 <span className="store-section-eyebrow">
-                  QMD SPORT / COLLECTION
+                  LAN ANH SPORT / COLLECTION
                 </span>
 
                 <h3>
@@ -1126,10 +1126,10 @@ export default function StorefrontPage({
           <div className="store-brands-heading">
             <div>
               <span className="store-section-eyebrow">OUR BRANDS</span>
-              <h2>Thương hiệu tại QMD Sport</h2>
+              <h2>Thương hiệu tại Lan Anh Sport</h2>
               <p>
                 Khám phá câu chuyện và tinh thần của những thương hiệu
-                thể thao đồng hành cùng QMD Sport.
+                thể thao đồng hành cùng Lan Anh Sport.
               </p>
             </div>
 
@@ -1167,7 +1167,7 @@ export default function StorefrontPage({
         {/* MEMBERSHIP */}
         <section className="store-promo-banner">
           <div>
-            <span>QMD SPORT MEMBERSHIP</span>
+            <span>LAN ANH SPORT MEMBERSHIP</span>
 
             <h2>Chơi hết mình. Nhận nhiều ưu đãi.</h2>
 
@@ -1199,7 +1199,7 @@ export default function StorefrontPage({
           <div className="store-section-heading">
             <div>
               <span className="store-section-eyebrow">
-                WHY QMD SPORT
+                WHY LAN ANH SPORT
               </span>
 
               <h2>Đồng hành cùng đam mê của bạn</h2>
@@ -1244,10 +1244,10 @@ export default function StorefrontPage({
         {/* SUPPORT CTA */}
         <section className="store-support-section">
           <div>
-            <span>QMD SPORT CUSTOMER CARE</span>
+            <span>LAN ANH SPORT CUSTOMER CARE</span>
             <h2>Bạn cần chúng tôi hỗ trợ?</h2>
             <p>
-              Đội ngũ QMD Sport sẵn sàng hỗ trợ bạn trong quá
+              Đội ngũ Lan Anh Sport sẵn sàng hỗ trợ bạn trong quá
               trình tìm hiểu và mua sắm sản phẩm.
             </p>
           </div>
@@ -1286,7 +1286,7 @@ export default function StorefrontPage({
             </button>
 
             <div className="store-brand-dialog-header">
-              <span>QMD SPORT / BRAND STORIES</span>
+              <span>LAN ANH SPORT / BRAND STORIES</span>
               <span>{selectedBrand.country.toUpperCase()}</span>
             </div>
 
@@ -1362,7 +1362,7 @@ export default function StorefrontPage({
             </div>
 
             <div className="store-brand-dialog-footer">
-              <span>QMD SPORT</span>
+              <span>LAN ANH SPORT</span>
               <span>PLAY YOUR GAME.</span>
             </div>
           </section>
@@ -1381,7 +1381,7 @@ export default function StorefrontPage({
               }}
             >
               <span className="store-logo-mark">Q</span>
-              <strong>QMD SPORT</strong>
+              <strong>LAN ANH SPORT</strong>
             </a>
 
             <p>
@@ -1441,7 +1441,7 @@ export default function StorefrontPage({
 
         <div className="store-footer-bottom">
           <span>
-            © 2026 QMD SPORT. ALL RIGHTS RESERVED.
+            © 2026 LAN ANH SPORT. ALL RIGHTS RESERVED.
           </span>
 
           <span>PLAY YOUR GAME.</span>

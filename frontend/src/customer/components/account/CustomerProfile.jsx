@@ -17,7 +17,7 @@ function MemberIdentity({ user }) {
       </div>
 
       <div>
-        <span>THÀNH VIÊN QMD SPORT</span>
+        <span>THÀNH VIÊN LAN ANH SPORT</span>
         <h3>{getMemberName(user)}</h3>
         <small>Customer account</small>
       </div>
@@ -75,7 +75,7 @@ export default function CustomerProfile({
             <span>01 / PERSONAL INFORMATION</span>
             <h3>Thông tin thành viên</h3>
             <p>
-              Thông tin hiện tại của tài khoản QMD SPORT.
+              Thông tin hiện tại của tài khoản LAN ANH SPORT.
             </p>
           </div>
         </div>
@@ -87,7 +87,7 @@ export default function CustomerProfile({
 
         <p className="member-profile-note">
           Nếu muốn thay đổi họ tên hoặc số điện thoại, vui lòng liên hệ
-          bộ phận hỗ trợ khách hàng qua khung chat QMD SPORT.
+          bộ phận hỗ trợ khách hàng qua khung chat LAN ANH SPORT.
         </p>
       </section>
 

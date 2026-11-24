@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { adminAuthRequest } from "../../services/admin-auth.service.js";
 
 export default function AdminLogin({ onLogin }) {
@@ -51,7 +51,7 @@ export default function AdminLogin({ onLogin }) {
         <div className="admin-logo">
           <span>Q</span>
           <div>
-            <strong>QMDATN2026</strong>
+            <strong>Lan Anh Sport</strong>
             <small>ADMINISTRATION</small>
           </div>
         </div>
@@ -113,7 +113,7 @@ export default function AdminLogin({ onLogin }) {
         </form>
 
         <p className="admin-login-footer">
-          HỆ THỐNG QUẢN TRỊ · QMDATN2026
+          HỆ THỐNG QUẢN TRỊ · Lan Anh Sport
         </p>
       </section>
     </main>

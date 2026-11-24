@@ -2,10 +2,10 @@ import { useState } from "react";
 
 export function Brand() {
   return (
-    <a className="auth-brand" href="/" aria-label="QMDATN2026">
+    <a className="auth-brand" href="/" aria-label="Lan Anh Sport">
       <span className="auth-brand-mark">Q</span>
       <span className="auth-brand-name">
-        QMDATN2026
+        LAN ANH SPORT
         <small>BADMINTON STORE</small>
       </span>
     </a>

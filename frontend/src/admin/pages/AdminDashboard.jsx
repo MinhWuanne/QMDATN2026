@@ -1,4 +1,4 @@
-﻿
+
 import { useEffect, useState } from "react";
 import CatalogManagementPage from "./catalog/CatalogManagementPage.jsx";
 import ProductManagementPage from "./catalog/ProductManagementPage.jsx";
@@ -113,7 +113,7 @@ export default function AdminDashboard({
         >
           <span className="admin-brand-mark">Q</span>
           <span>
-            <strong>QMDATN2026</strong>
+            <strong>Lan Anh Sport</strong>
             <small>SPORT RETAIL ADMIN</small>
           </span>
         </a>
@@ -178,7 +178,7 @@ export default function AdminDashboard({
 
             <div>
               <span className="admin-breadcrumb">
-                QUẢN TRỊ / QMDATN2026
+                QUẢN TRỊ / Lan Anh Sport
               </span>
               <h1>{currentItem?.title || "Dashboard"}</h1>
             </div>
@@ -285,7 +285,7 @@ export default function AdminDashboard({
         </div>
 
         <footer className="admin-footer">
-          <span>© 2026 QMDATN2026</span>
+          <span>© 2026 Lan Anh Sport</span>
           <span>SPORT RETAIL MANAGEMENT SYSTEM</span>
         </footer>
       </section>

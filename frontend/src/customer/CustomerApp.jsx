@@ -1,4 +1,4 @@
-﻿
+
 import { useCallback, useEffect, useState } from "react";
 
 import "./styles/customer.css";
@@ -65,7 +65,7 @@ function LoginRequiredDialog({ onLogin, onClose }) {
         </h2>
 
         <p>
-          Vui lòng đăng nhập tài khoản QMD Sport để sử dụng giỏ hàng và
+          Vui lòng đăng nhập tài khoản Lan Anh Sport để sử dụng giỏ hàng và
           tiếp tục mua sắm.
         </p>
 
